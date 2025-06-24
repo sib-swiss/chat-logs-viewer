@@ -3,7 +3,7 @@ import {defineConfig} from "@solidjs/start/config";
 export default defineConfig({
   server: {
     preset: "static",
-    baseURL: "/chat-logs-viewer/",
+    baseURL: process.env.BASE_PATH || "/",
     prerender: {
       crawlLinks: true,
     },

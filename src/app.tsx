@@ -6,7 +6,7 @@ import "./app.css";
 export default function App() {
   return (
     <Router
-      base="/chat-logs-viewer/"
+      base={import.meta.env.SERVER_BASE_URL}
       root={props => (
         <main>
           <Suspense>{props.children}</Suspense>

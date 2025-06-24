@@ -21,8 +21,6 @@ npm i
 npm run dev
 ```
 
-> Available at http://localhost:3000/chat-logs-viewer/
-
 ### 📦 Build for production
 
 Build for deployment on static pages in `.output/public`:
