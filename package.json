@@ -1,0 +1,41 @@
+{
+  "name": "chat-logs-viewer",
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start",
+    "fmt": "prettier --write . && eslint \"**/*.{ts,tsx,html,json}\" --fix",
+    "lint": "prettier --check . && eslint \"**/*.{ts,tsx,html,json}\""
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.0",
+    "@solidjs/start": "^1.1.0",
+    "dompurify": "^3.2.6",
+    "highlight.js": "^11.11.1",
+    "marked": "^15.0.12",
+    "solid-js": "^1.9.7",
+    "vinxi": "^0.5.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/eslint__js": "^8.42.3",
+    "eslint": "^9.29.0",
+    "eslint-plugin-solid": "^0.14.5",
+    "globals": "^16.2.0",
+    "prettier": "^3.6.0",
+    "typescript-eslint": "^8.35.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "prettier": {
+    "semi": true,
+    "tabWidth": 2,
+    "singleQuote": false,
+    "bracketSpacing": false,
+    "arrowParens": "avoid",
+    "useTabs": false,
+    "printWidth": 120
+  }
+}
