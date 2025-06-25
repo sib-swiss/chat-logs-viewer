@@ -7,7 +7,7 @@
     "esModuleInterop": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "allowJs": true,
+    "allowJs": false,
     "strict": true,
     "noEmit": true,
     "types": ["vinxi/types/client"],

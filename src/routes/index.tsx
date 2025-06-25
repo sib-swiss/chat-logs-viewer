@@ -14,6 +14,7 @@ import FileUpload from "~/components/FileUpload";
 import SummaryTable, {Summary} from "~/components/SummaryTable";
 import {executeSparqlQuery, formatSparqlResults} from "~/utils/query-sparql";
 import {hljsDefineSparql, hljsDefineTurtle} from "~/utils/highlight-sparql";
+import {storeFile, getAllStoredFiles, createFileFromStored, clearAllStoredFiles} from "~/utils/storage";
 
 interface SparqlBlock {
   endpoint: string;
@@ -93,10 +94,16 @@ export default function Index() {
     langfuse: null,
   });
   const [uploadSectionExpanded, setUploadSectionExpanded] = createSignal(true);
+  const [isLoadingFromStorage, setIsLoadingFromStorage] = createSignal(true);
 
   // To display steps
   const [dialogOpen, setDialogOpen] = createSignal("");
   const [selectedDocsTab, setSelectedDocsTab] = createSignal("");
+
+  /** Initialize component */
+  createEffect(() => {
+    loadStoredFiles();
+  });
 
   /** Set active tab to first available tab when files are uploaded */
   createEffect(() => {
@@ -121,18 +128,46 @@ export default function Index() {
     }
   });
 
-  const handleFileUpload = (event: Event, fileType: "likes" | "dislikes" | "langfuse") => {
+  /** Load stored files from IndexedDB on component initialization */
+  const loadStoredFiles = async () => {
+    try {
+      const storedFiles = await getAllStoredFiles();
+      for (const storedFile of storedFiles) {
+        const file = createFileFromStored(storedFile);
+        setUploadedFiles(storedFile.id as "likes" | "dislikes" | "langfuse", file);
+        // Process the file content directly from storage
+        await processJsonlContent(storedFile.content, storedFile.id as "likes" | "dislikes" | "langfuse");
+      }
+    } catch (error) {
+      console.error("Failed to load stored files:", error);
+    } finally {
+      setIsLoadingFromStorage(false);
+    }
+  };
+
+  const handleFileUpload = async (event: Event, fileType: "likes" | "dislikes" | "langfuse") => {
     const target = event.target as HTMLInputElement;
     if (target.files && target.files[0]) {
       const file = target.files[0];
       setUploadedFiles(fileType, file);
-      processJsonlFile(file, fileType);
+      // Store file in IndexedDB
+      try {
+        await storeFile(fileType, file);
+        console.log(`File ${file.name} stored successfully in IndexedDB`);
+      } catch (error) {
+        console.error(`Failed to store file ${file.name}:`, error);
+      }
+      await processJsonlFile(file, fileType);
       setActiveTab(fileType);
     }
   };
 
   const processJsonlFile = async (file: File, fileType: "likes" | "dislikes" | "langfuse") => {
     const text = await file.text();
+    await processJsonlContent(text, fileType);
+  };
+
+  const processJsonlContent = async (text: string, fileType: "likes" | "dislikes" | "langfuse") => {
     const lines = text.trim().split("\n");
     const newConversations: Conversation[] = [];
     // Clear markdown memoization cache when processing new files
@@ -205,6 +240,30 @@ export default function Index() {
     setConversations([...otherConversations, ...newConversations]);
     updateSummary();
     highlightAll();
+  };
+
+  /** Clear all stored data */
+  const clearStoredData = async () => {
+    try {
+      await clearAllStoredFiles();
+      // Reset the state
+      setUploadedFiles("likes", null);
+      setUploadedFiles("dislikes", null);
+      setUploadedFiles("langfuse", null);
+      setConversations([]);
+      setSummary({
+        likes: 0,
+        likes_sparql: 0,
+        dislikes: 0,
+        dislikes_sparql: 0,
+        langfuse: 0,
+        langfuse_sparql: 0,
+        sparql_total: 0,
+      });
+      console.log("All stored data cleared successfully");
+    } catch (error) {
+      console.error("Failed to clear stored data:", error);
+    }
   };
 
   const updateSummary = () => {
@@ -361,6 +420,13 @@ export default function Index() {
         <img src={githubIcon} alt="GitHub" />
       </a>
 
+      {/* Loading indicator */}
+      <Show when={isLoadingFromStorage()}>
+        <div style={{"text-align": "center", padding: "1rem"}}>
+          <p>⏳ Loading previously uploaded files...</p>
+        </div>
+      </Show>
+
       {/* File Upload */}
       <div class="upload-section">
         <h3
@@ -394,6 +460,27 @@ export default function Index() {
               onFileUpload={e => handleFileUpload(e, "dislikes")}
             />
           </div>
+
+          {/* Clear stored data button */}
+          <Show when={uploadedFiles.likes || uploadedFiles.dislikes || uploadedFiles.langfuse}>
+            <div style={{"text-align": "center", "margin-top": "1rem"}}>
+                <button
+                  class="btn-clear-data"
+                  style={{
+                    "background-color": "#ffb3b3",
+                    color: "#990000", // Darker red text
+                    border: "none",
+                    padding: "0.5rem 1rem",
+                    "border-radius": "4px",
+                    cursor: "pointer",
+                  }}
+                  onClick={clearStoredData}
+                  title="Clear all uploaded files from local storage"
+                >
+                  🗑️ Clear logs stored locally
+                </button>
+            </div>
+          </Show>
         </Show>
       </div>
 

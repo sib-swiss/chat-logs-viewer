@@ -53,7 +53,7 @@ npx http-server .output/public/
 
 > [!NOTE]
 >
-> The website deployed at [sib-swiss.github.io/chat-logs-viewer](https://sib-swiss.github.io/chat-logs-viewer) is automatically updated on every push by a GitHub action workflow.
+> The static website deployed at [sib-swiss.github.io/chat-logs-viewer](https://sib-swiss.github.io/chat-logs-viewer) is automatically updated on every push by a GitHub action workflow.
 
 ### 🧹 Maintenance
 
