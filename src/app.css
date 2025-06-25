@@ -43,13 +43,9 @@ h4 {
 
 .upload-header {
   cursor: pointer;
-  user-select: none;
-  padding: 10px;
+  padding: .5em;
   border-radius: 6px;
   transition: background-color 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .upload-header:hover {
@@ -65,8 +61,8 @@ h4 {
 .upload-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
-  padding: 1em;
+  gap: .5em;
+  padding: .5em;
   border: 1px solid #eee;
   border-radius: 8px;
   background: #fafafa;
@@ -76,7 +72,7 @@ h4 {
   display: inline-block;
   padding: 10px 16px;
   background: #007acc;
-  color: white;
+  color: #eee;
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
@@ -260,7 +256,7 @@ h4 {
   background: #f3f3ff;
   border: 1px solid #99c;
   padding: 1em;
-  margin-top: 8px;
+  margin-top: .4em;
   border-radius: 6px;
   max-width: 80%;
 }
@@ -320,12 +316,12 @@ dialog {
 .sparql-result table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 8px;
+  margin-top: .4em;
 }
 
 .sparql-result th,
 .sparql-result td {
-  padding: 4px 8px;
+  padding: .2em .4em;
   text-align: left;
   border: 1px solid #ddd;
 }

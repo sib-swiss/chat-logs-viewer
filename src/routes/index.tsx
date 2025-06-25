@@ -10,6 +10,8 @@ import "highlight.js/styles/default.min.css";
 import xIcon from "~/assets/x.svg";
 import sendIcon from "~/assets/send.svg";
 import githubIcon from "~/assets/github.svg";
+import FileUpload from "~/components/FileUpload";
+import SummaryTable, {Summary} from "~/components/SummaryTable";
 import {executeSparqlQuery, formatSparqlResults} from "~/utils/query-sparql";
 import {hljsDefineSparql, hljsDefineTurtle} from "~/utils/highlight-sparql";
 
@@ -42,16 +44,6 @@ interface Step {
   details: string; // Details about the step as markdown string
   substeps?: {label: string; details: string}[];
   // retrieved_docs?: RefenceDocument[];
-}
-
-interface Summary {
-  likes: number;
-  likes_sparql: number;
-  dislikes: number;
-  dislikes_sparql: number;
-  langfuse: number;
-  langfuse_sparql: number;
-  sparql_total: number;
 }
 
 // Initialize markdown and code highlight
@@ -380,86 +372,33 @@ export default function Index() {
         </h3>
         <Show when={uploadSectionExpanded()}>
           <div class="upload-buttons">
-            <div class="upload-group">
-              <label for="langfuse-upload" class="upload-label">
-                🔌 Upload Langfuse logs
-              </label>
-              <input
-                id="langfuse-upload"
-                type="file"
-                accept=".jsonl"
-                onChange={e => handleFileUpload(e, "langfuse")}
-                class="file-input"
-              />
-              <Show when={uploadedFiles.langfuse}>
-                <span class="file-status">✅ {uploadedFiles.langfuse?.name}</span>
-              </Show>
-            </div>
-
-            <div class="upload-group">
-              <label for="likes-upload" class="upload-label">
-                👍 Upload Likes logs
-              </label>
-              <input
-                id="likes-upload"
-                type="file"
-                accept=".jsonl"
-                onChange={e => handleFileUpload(e, "likes")}
-                class="file-input"
-              />
-              <Show when={uploadedFiles.likes}>
-                <span class="file-status">✅ {uploadedFiles.likes?.name}</span>
-              </Show>
-            </div>
-
-            <div class="upload-group">
-              <label for="dislikes-upload" class="upload-label">
-                👎 Upload Dislikes logs
-              </label>
-              <input
-                id="dislikes-upload"
-                type="file"
-                accept=".jsonl"
-                onChange={e => handleFileUpload(e, "dislikes")}
-                class="file-input"
-              />
-              <Show when={uploadedFiles.dislikes}>
-                <span class="file-status">✅ {uploadedFiles.dislikes?.name}</span>
-              </Show>
-            </div>
+            <FileUpload
+              id="langfuse-upload"
+              label="Upload Langfuse logs"
+              icon="🔌"
+              uploadedFile={uploadedFiles.langfuse}
+              onFileUpload={e => handleFileUpload(e, "langfuse")}
+            />
+            <FileUpload
+              id="likes-upload"
+              label="Upload Likes logs"
+              icon="👍"
+              uploadedFile={uploadedFiles.likes}
+              onFileUpload={e => handleFileUpload(e, "likes")}
+            />
+            <FileUpload
+              id="dislikes-upload"
+              label="Upload Dislikes logs"
+              icon="👎"
+              uploadedFile={uploadedFiles.dislikes}
+              onFileUpload={e => handleFileUpload(e, "dislikes")}
+            />
           </div>
         </Show>
       </div>
 
       <Show when={conversations().length > 0}>
-        {/* Summary */}
-        <div class="summary">
-          <h4>📊 Uploaded logs summary</h4>
-          <table class="summary-table">
-            <thead>
-              <tr>
-                <th>🔌 Langfuse</th>
-                <th>🔌 Langfuse SPARQL</th>
-                <th>👍 Likes</th>
-                <th>👍 Likes SPARQL</th>
-                <th>👎 Dislikes</th>
-                <th>👎 Dislikes SPARQL</th>
-                <th>🧠 Total SPARQL</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>{summary().langfuse}</td>
-                <td>{summary().langfuse_sparql}</td>
-                <td>{summary().likes}</td>
-                <td>{summary().likes_sparql}</td>
-                <td>{summary().dislikes}</td>
-                <td>{summary().dislikes_sparql}</td>
-                <td>{summary().sparql_total}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <SummaryTable summary={summary()} />
 
         {/* Tabs */}
         <div class="tabs">
