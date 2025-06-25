@@ -84,7 +84,7 @@ export function hljsDefineTurtle(hljs: HLJSApi) {
   return {
     case_insensitive: true,
     keywords: KEYWORDS,
-    aliases: ["turtle", "ttl", "n3", "ntriples"],
+    aliases: ["turtle", "ttl", "n3", "ntriples", "shex"],
     contains: [
       LANGTAG,
       DATATYPE,

@@ -11,8 +11,8 @@ export default createHandler(() => (
           <link rel="icon" href="/logo.png" />
           <title>Chat Logs Viewer</title>
           <meta property="og:title" content="Chat Logs Viewer" />
-          <meta name="description" content="Basic webapp to visually explore conversation logs." />
-          <meta property="og:description" content="Basic webapp to visually explore conversation logs." />
+          <meta name="description" content="Web app to explore chat logs." />
+          <meta property="og:description" content="Web app to explore chat logs." />
           <meta property="og:image" content="logo.png" />
           <meta name="author" content="SIB Swiss Institute of Bioinformatics" />
           <meta name="keywords" content="Logs" />

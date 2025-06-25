@@ -1,4 +1,5 @@
 // API utilities for SPARQL execution
+
 export interface SparqlResponse {
   success: boolean;
   result?: {
@@ -9,10 +10,16 @@ export interface SparqlResponse {
   error?: string;
 }
 
+/**
+ * Execute a SPARQL query against a endpoint URL
+ * @param endpoint The SPARQL endpoint URL.
+ * @param query The SPARQL query string to execute.
+ * @returns A JSON object containing the results or an error message.
+ */
 export async function executeSparqlQuery(endpoint: string, query: string): Promise<SparqlResponse> {
   try {
     const response = await fetch(`${endpoint}?query=${encodeURIComponent(query)}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(60000),
       headers: {
         Accept: "application/sparql-results+json",
       },
@@ -33,6 +40,11 @@ export async function executeSparqlQuery(endpoint: string, query: string): Promi
   }
 }
 
+/**
+ * Format SPARQL results into an HTML table.
+ * @param data The response from the SPARQL query execution.
+ * @returns A string containing HTML to display the results.
+ */
 export function formatSparqlResults(data: SparqlResponse): string {
   if (!data.success) {
     return `<span class='tag-fail'>❌ Query failed</span><br><pre>${data.error || "Unknown error"}</pre>`;
@@ -52,7 +64,7 @@ export function formatSparqlResults(data: SparqlResponse): string {
   }
   table += "</tbody></table>";
   if (rows.length > 10) {
-    table += `<br>...Showing 10 of ${rows.length} rows.`;
+    table += `<br>Showing 10 of ${rows.length} rows.`;
   }
   return table;
 }
