@@ -28,12 +28,12 @@ const initDB = (): Promise<IDBDatabase> => {
     request.onsuccess = () => {
       resolve(request.result);
     };
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = event => {
       const db = (event.target as IDBOpenDBRequest).result;
       // Create object store if it doesn't exist
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-        store.createIndex("uploadedAt", "uploadedAt", { unique: false });
+        const store = db.createObjectStore(STORE_NAME, {keyPath: "id"});
+        store.createIndex("uploadedAt", "uploadedAt", {unique: false});
       }
     };
   });
@@ -144,7 +144,7 @@ export const clearAllStoredFiles = async (): Promise<void> => {
  * Create a File object from stored file data
  */
 export const createFileFromStored = (storedFile: StoredFile): File => {
-  const blob = new Blob([storedFile.content], { type: storedFile.type || "application/json" });
+  const blob = new Blob([storedFile.content], {type: storedFile.type || "application/json"});
   const file = new File([blob], storedFile.name, {
     type: storedFile.type || "application/json",
     lastModified: storedFile.lastModified,

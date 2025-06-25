@@ -43,7 +43,7 @@ h4 {
 
 .upload-header {
   cursor: pointer;
-  padding: .5em;
+  padding: 0.5em;
   border-radius: 6px;
   transition: background-color 0.2s ease;
 }
@@ -61,8 +61,8 @@ h4 {
 .upload-group {
   display: flex;
   flex-direction: column;
-  gap: .5em;
-  padding: .5em;
+  gap: 0.5em;
+  padding: 0.5em;
   border: 1px solid #eee;
   border-radius: 8px;
   background: #fafafa;
@@ -100,14 +100,6 @@ h4 {
   gap: 5px;
 }
 
-.summary {
-  padding: 10px 15px;
-  background: #eef6ff;
-  border: 1px solid #cce;
-  border-radius: 8px;
-  margin-bottom: 1em;
-}
-
 /* Summary table styles */
 .summary-table {
   width: 100%;
@@ -117,6 +109,7 @@ h4 {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1em;
 }
 
 .summary-table th,
@@ -154,7 +147,7 @@ h4 {
   /* padding: 10px 16px; */
   margin-right: 10px;
   border: 1px solid #bbb;
-  background-color: #eee;
+  background-color: #fff;
   color: #495057;
   cursor: pointer;
   /* border-bottom: none; */
@@ -256,7 +249,7 @@ h4 {
   background: #f3f3ff;
   border: 1px solid #99c;
   padding: 1em;
-  margin-top: .4em;
+  margin-top: 0.4em;
   border-radius: 6px;
   max-width: 80%;
 }
@@ -298,7 +291,6 @@ dialog {
 
 .tag-success {
   color: green;
-  font-weight: bold;
 }
 
 .tag-fail {
@@ -316,12 +308,12 @@ dialog {
 .sparql-result table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: .4em;
+  margin-top: 0.4em;
 }
 
 .sparql-result th,
 .sparql-result td {
-  padding: .2em .4em;
+  padding: 0.2em 0.4em;
   text-align: left;
   border: 1px solid #ddd;
 }

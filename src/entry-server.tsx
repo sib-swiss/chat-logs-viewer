@@ -8,7 +8,7 @@ export default createHandler(() => (
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <link rel="icon" href="/logo.png" />
+          <link rel="icon" href="logo.png" />
           <title>Chat Logs Viewer</title>
           <meta property="og:title" content="Chat Logs Viewer" />
           <meta name="description" content="Web app to explore chat logs." />

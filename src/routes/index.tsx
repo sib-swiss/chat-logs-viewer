@@ -7,11 +7,11 @@ import python from "highlight.js/lib/languages/python";
 import r from "highlight.js/lib/languages/r";
 import "highlight.js/styles/default.min.css";
 
-import xIcon from "~/assets/x.svg";
 import sendIcon from "~/assets/send.svg";
 import githubIcon from "~/assets/github.svg";
 import FileUpload from "~/components/FileUpload";
 import SummaryTable, {Summary} from "~/components/SummaryTable";
+import Dialog from "~/components/Dialog";
 import {executeSparqlQuery, formatSparqlResults} from "~/utils/query-sparql";
 import {hljsDefineSparql, hljsDefineTurtle} from "~/utils/highlight-sparql";
 import {storeFile, getAllStoredFiles, createFileFromStored, clearAllStoredFiles} from "~/utils/storage";
@@ -57,7 +57,7 @@ hljs.registerLanguage("python", python);
 hljs.registerLanguage("r", r);
 
 export default function Index() {
-  const [activeTab, setActiveTab] = createSignal<string>("likes");
+  const [activeTab, setActiveTab] = createSignal<string>("langfuse");
   const [conversations, setConversations] = createSignal<Conversation[]>([]);
   const [summary, setSummary] = createSignal<Summary>({
     likes: 0,
@@ -67,6 +67,7 @@ export default function Index() {
     langfuse: 0,
     langfuse_sparql: 0,
     sparql_total: 0,
+    conversation_total: 0,
   });
   const [conversationFilters, setConversationFilters] = createStore<
     Record<
@@ -95,29 +96,21 @@ export default function Index() {
   });
   const [uploadSectionExpanded, setUploadSectionExpanded] = createSignal(true);
   const [isLoadingFromStorage, setIsLoadingFromStorage] = createSignal(true);
-
-  // To display steps
-  const [dialogOpen, setDialogOpen] = createSignal("");
+  // To display substeps
   const [selectedDocsTab, setSelectedDocsTab] = createSignal("");
 
   /** Initialize component */
   createEffect(() => {
     loadStoredFiles();
-  });
-
-  /** Set active tab to first available tab when files are uploaded */
-  createEffect(() => {
-    const availableTabs = getAvailableTabs();
-    if (availableTabs.length > 0 && !availableTabs.some(tab => tab.key === activeTab())) {
-      setActiveTab(availableTabs[0].key);
-    }
+    // Restore last active tab from localStorage
+    const savedActiveTab = localStorage.getItem("chat-logs-viewer-active-tab");
+    if (savedActiveTab) setActiveTab(savedActiveTab);
   });
 
   /** Trigger code highlighting when tab changes */
   createEffect(() => {
     activeTab(); // Track the activeTab signal
-    // Use a small delay to ensure DOM is updated before highlighting
-    setTimeout(() => highlightAll(), 0);
+    highlightAll();
   });
 
   /** Auto-collapse upload section when all 3 files are uploaded */
@@ -139,7 +132,7 @@ export default function Index() {
         await processJsonlContent(storedFile.content, storedFile.id as "likes" | "dislikes" | "langfuse");
       }
     } catch (error) {
-      console.error("Failed to load stored files:", error);
+      console.warn("Failed to load stored files:", error);
     } finally {
       setIsLoadingFromStorage(false);
     }
@@ -153,9 +146,8 @@ export default function Index() {
       // Store file in IndexedDB
       try {
         await storeFile(fileType, file);
-        console.log(`File ${file.name} stored successfully in IndexedDB`);
       } catch (error) {
-        console.error(`Failed to store file ${file.name}:`, error);
+        console.warn(`Failed to store file ${file.name}:`, error);
       }
       await processJsonlFile(file, fileType);
       setActiveTab(fileType);
@@ -172,11 +164,10 @@ export default function Index() {
     const newConversations: Conversation[] = [];
     // Clear markdown memoization cache when processing new files
     renderMarkdownMemo.clear();
-    // let sparqlCount = 0;
     for (const line of lines) {
       try {
         const data = JSON.parse(line);
-        console.log("Processing line:", fileType, data);
+        // console.log("Processing line:", fileType, data);
         if (fileType === "langfuse") {
           // Handle langfuse format
           if (data.output && data.output.messages && Array.isArray(data.output.messages)) {
@@ -203,7 +194,6 @@ export default function Index() {
                   }
                 : undefined,
             };
-            // if (conversation.sparql_block) sparqlCount += 1;
             newConversations.push(conversation);
           }
         } else {
@@ -224,6 +214,7 @@ export default function Index() {
             label: fileType,
             messages: data.messages || [],
             steps: conversationSteps,
+            totalCost: data.totalCost || 0,
           };
           newConversations.push(conversation);
         }
@@ -259,10 +250,12 @@ export default function Index() {
         langfuse: 0,
         langfuse_sparql: 0,
         sparql_total: 0,
+        conversation_total: 0,
       });
-      console.log("All stored data cleared successfully");
+      // Clear saved active tab
+      localStorage.removeItem("chat-logs-viewer-active-tab");
     } catch (error) {
-      console.error("Failed to clear stored data:", error);
+      console.warn("Failed to clear stored data:", error);
     }
   };
 
@@ -301,6 +294,7 @@ export default function Index() {
       langfuse: totalComplete,
       langfuse_sparql: completeSparql,
       sparql_total: totalSparql,
+      conversation_total: allConversations.length,
     });
   };
 
@@ -348,23 +342,6 @@ export default function Index() {
     });
   };
 
-  const openDialog = (dialogId: string) => {
-    setDialogOpen(dialogId);
-    (document.getElementById(dialogId) as HTMLDialogElement).showModal();
-    history.pushState({dialogOpen: true}, "");
-    document.body.style.overflow = "hidden";
-    // Use debounced highlighting to avoid excessive highlighting calls
-    highlightElement(dialogId);
-  };
-
-  const closeDialog = () => {
-    document.body.style.overflow = "";
-    const dialogEl = document.getElementById(dialogOpen()) as HTMLDialogElement;
-    if (dialogEl) dialogEl.close();
-    setDialogOpen("");
-    // history.back();
-  };
-
   // Memoization cache for parsed markdown to avoid recomputing
   const renderMarkdownMemo = new Map<string, string>();
 
@@ -378,21 +355,6 @@ export default function Index() {
     });
     renderMarkdownMemo.set(content, parsed);
     return parsed;
-  };
-
-  let highlightTimeout: number | undefined;
-
-  /** Debounced highlighting to avoid excessive calls */
-  const highlightElement = (dialogId: string) => {
-    if (highlightTimeout) clearTimeout(highlightTimeout);
-    highlightTimeout = setTimeout(() => {
-      const dialog = document.getElementById(dialogId);
-      if (dialog) {
-        dialog.querySelectorAll("pre code:not(.hljs)").forEach(block => {
-          hljs.highlightElement(block as HTMLElement);
-        });
-      }
-    }, 10) as unknown as number;
   };
 
   const highlightAll = () => {
@@ -414,8 +376,8 @@ export default function Index() {
           top: "1.5rem",
           right: "1.5rem",
         }}
-        onMouseEnter={e => (e.target.style.opacity = "0.7")}
-        onMouseLeave={e => (e.target.style.opacity = "1")}
+        onMouseEnter={e => ((e.target as HTMLElement).style.opacity = "0.7")}
+        onMouseLeave={e => ((e.target as HTMLElement).style.opacity = "1")}
       >
         <img src={githubIcon} alt="GitHub" />
       </a>
@@ -464,21 +426,21 @@ export default function Index() {
           {/* Clear stored data button */}
           <Show when={uploadedFiles.likes || uploadedFiles.dislikes || uploadedFiles.langfuse}>
             <div style={{"text-align": "center", "margin-top": "1rem"}}>
-                <button
-                  class="btn-clear-data"
-                  style={{
-                    "background-color": "#ffb3b3",
-                    color: "#990000", // Darker red text
-                    border: "none",
-                    padding: "0.5rem 1rem",
-                    "border-radius": "4px",
-                    cursor: "pointer",
-                  }}
-                  onClick={clearStoredData}
-                  title="Clear all uploaded files from local storage"
-                >
-                  🗑️ Clear logs stored locally
-                </button>
+              <button
+                class="btn-clear-data"
+                style={{
+                  "background-color": "#ffb3b3",
+                  color: "#990000", // Darker red text
+                  border: "none",
+                  padding: "0.5rem 1rem",
+                  "border-radius": "4px",
+                  cursor: "pointer",
+                }}
+                onClick={clearStoredData}
+                title="Clear all uploaded files from local storage"
+              >
+                🗑️ Clear logs stored locally
+              </button>
             </div>
           </Show>
         </Show>
@@ -493,7 +455,10 @@ export default function Index() {
             {tab => (
               <button
                 class={`tab-button ${activeTab() === tab.key ? "active" : ""}`}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  localStorage.setItem("chat-logs-viewer-active-tab", tab.key);
+                }}
               >
                 {tab.icon} {tab.label}
               </button>
@@ -584,7 +549,7 @@ export default function Index() {
                 <For each={filteredConversations()}>
                   {convo => (
                     <div class="box">
-                      <h4 style={{"margin-bottom": ".5em"}}>🗓️ Conversation at {convo.timestamp}</h4>
+                      <h4 style={{"margin-bottom": ".5em"}}>🗓️ Conversation {convo.timestamp}</h4>
 
                       {/* Display messages */}
                       <For each={convo.messages} fallback={<div>No messages found</div>}>
@@ -595,7 +560,7 @@ export default function Index() {
                             <div
                               class={`message ${["user", "human"].includes(message.role) ? "user-icon" : "assistant-icon"}`}
                             >
-                              <span style={{"margin-left": ".2em"}}>{message.role}</span>
+                                <span style={{"margin-left": ".2em", color: "#999999"}}>{message.role}</span>
                               <br />
                               {/* eslint-disable-next-line solid/no-innerhtml */}
                               <article innerHTML={renderMarkdown(message.content)} />
@@ -605,111 +570,85 @@ export default function Index() {
                       </For>
 
                       {/* Display steps */}
-                      <Show when={convo.steps.length > 0 || convo.totalCost > 0}>
+                      <Show when={convo.steps.length > 0 || convo.totalCost}>
                         <div class="steps-box">
-                          <button
-                            style={{"background-color": "#f3f3f3", border: "none", cursor: "help"}}
-                            title={`Total cost: ${convo.totalCost * 100}¢
+                          {convo.totalCost && (
+                            <button
+                              style={{"background-color": "#f3f3f3", border: "none", cursor: "help"}}
+                              title={`Total cost: ${convo.totalCost * 100}¢
+
 Tokens usage:
-- prompt: ${convo.promptTokens}
-- completion: ${convo.completionTokens}
-- total: ${convo.totalTokens}`}
-                          >
-                            💶
-                          </button>
+📝 prompt: ${convo.promptTokens}
+🤖 completion: ${convo.completionTokens}
+📊 total: ${convo.totalTokens}`}
+                            >
+                              💶
+                            </button>
+                          )}
                           <For each={convo.steps}>
-                            {(step, iStep) =>
+                            {step =>
                               step.substeps && step.substeps.length > 0 ? (
-                                <>
-                                  {/* Dialog to show more details about a step with substeps (e.g. retrieved documents) */}
-                                  <button
-                                    class="btn-step"
-                                    title="Click to see the details of the step"
-                                    onClick={() => {
-                                      setSelectedDocsTab(step.substeps?.[0]?.label || "");
-                                      openDialog(`step-dialog-${convo.timestamp}-${iStep()}`);
-                                    }}
-                                  >
-                                    {step.label}
-                                  </button>
-                                  <dialog
-                                    id={`step-dialog-${convo.timestamp}-${iStep()}`}
-                                    onClose={() => closeDialog()}
-                                  >
-                                    <button
-                                      id={`close-dialog-${convo.timestamp}-${iStep()}`}
-                                      class="btn-close"
-                                      title="Close documents details"
-                                      onClick={() => closeDialog()}
-                                    >
-                                      <img src={xIcon} alt="Close the dialog" class="iconBtn" />
+                                <Dialog
+                                  trigger={
+                                    <button class="btn-step" title="Click to see the details of the step">
+                                      {step.label}
                                     </button>
-                                    <article>
-                                      <div style={{display: "flex", gap: ".5em"}}>
-                                        <For each={step.substeps.map(substep => substep.label)}>
-                                          {label => (
-                                            <button
-                                              style={{
-                                                filter: selectedDocsTab() === label ? "brightness(60%)" : "none",
-                                              }}
-                                              onClick={() => {
-                                                setSelectedDocsTab(label);
-                                                // Use debounced highlighting for better performance
-                                                highlightElement(`step-dialog-${convo.timestamp}-${iStep()}`);
-                                              }}
-                                              title={`Show ${label}`}
-                                            >
-                                              {label}
-                                            </button>
-                                          )}
-                                        </For>
-                                      </div>
-                                      <For each={step.substeps.filter(substep => substep.label === selectedDocsTab())}>
-                                        {substep => {
-                                          // Only render the substep content if it matches the selected tab
-                                          return (
-                                            <article
-                                              // class="prose max-w-full"
-                                              // eslint-disable-next-line solid/no-innerhtml
-                                              innerHTML={renderMarkdown(substep.details)}
-                                            />
-                                          );
-                                        }}
+                                  }
+                                  onOpen={() => {
+                                    setSelectedDocsTab(step.substeps?.[0]?.label || "");
+                                    // Highlight after dialog opens
+                                    setTimeout(() => highlightAll(), 0);
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{display: "flex", gap: ".5em", "margin-bottom": "1rem"}}>
+                                      <For each={step.substeps!.map(substep => substep.label)}>
+                                        {label => (
+                                          <button
+                                            style={{
+                                              filter: selectedDocsTab() === label ? "brightness(60%)" : "none",
+                                            }}
+                                            onClick={() => {
+                                              setSelectedDocsTab(label);
+                                              setTimeout(() => highlightAll(), 0);
+                                            }}
+                                            title={`Show ${label}`}
+                                          >
+                                            {label}
+                                          </button>
+                                        )}
                                       </For>
-                                    </article>
-                                  </dialog>
-                                </>
+                                    </div>
+                                    <For each={step.substeps!.filter(substep => substep.label === selectedDocsTab())}>
+                                      {substep => (
+                                        <article
+                                          // eslint-disable-next-line solid/no-innerhtml
+                                          innerHTML={renderMarkdown(substep.details)}
+                                        />
+                                      )}
+                                    </For>
+                                  </div>
+                                </Dialog>
                               ) : step.details ? (
-                                <>
-                                  {/* Dialog to show more details about a step in markdown */}
-                                  <button
-                                    class="btn-step"
-                                    title={`Click to see the documents used to generate the response\n\nNode: ${step.node_id}`}
-                                    onClick={() => {
-                                      openDialog(`step-dialog-${convo.timestamp}-${iStep()}`);
-                                    }}
-                                  >
-                                    {step.label}
-                                  </button>
-                                  <dialog
-                                    id={`step-dialog-${convo.timestamp}-${iStep()}`}
-                                    onClose={() => closeDialog()}
-                                  >
+                                <Dialog
+                                  trigger={
                                     <button
-                                      id={`close-dialog-${convo.timestamp}-${iStep()}`}
-                                      class="btn-close"
-                                      title="Close step details"
-                                      onClick={() => closeDialog()}
+                                      class="btn-step"
+                                      title={`Click to see the documents used to generate the response\n\nNode: ${step.node_id}`}
                                     >
-                                      <img src={xIcon} alt="Close the dialog" class="iconBtn" />
+                                      {step.label}
                                     </button>
-                                    <article
-                                      // class="prose max-w-full p-6"
-                                      // eslint-disable-next-line solid/no-innerhtml
-                                      innerHTML={renderMarkdown(step.details)}
-                                    />
-                                  </dialog>
-                                </>
+                                  }
+                                  onOpen={() => {
+                                    // Highlight after dialog opens
+                                    setTimeout(() => highlightAll(), 0);
+                                  }}
+                                >
+                                  <article
+                                    // eslint-disable-next-line solid/no-innerhtml
+                                    innerHTML={renderMarkdown(step.details)}
+                                  />
+                                </Dialog>
                               ) : (
                                 // Display basic step without details
                                 <p title={`Node: ${step.node_id}`}>{step.label}</p>
