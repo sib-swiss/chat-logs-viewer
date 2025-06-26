@@ -69,6 +69,12 @@ export default function Index() {
     sparql_total: 0,
     conversation_total: 0,
   });
+  const [uploadSectionExpanded, setUploadSectionExpanded] = createSignal(true);
+  const [isLoadingFromStorage, setIsLoadingFromStorage] = createSignal(true);
+  // To display substeps
+  const [selectedDocsTab, setSelectedDocsTab] = createSignal("");
+  const [searchQuery, setSearchQuery] = createSignal<string>("");
+
   const [conversationFilters, setConversationFilters] = createStore<
     Record<
       string,
@@ -84,7 +90,6 @@ export default function Index() {
     dislikes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1},
     langfuse: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1},
   });
-  const [searchQuery, setSearchQuery] = createSignal<string>("");
   const [uploadedFiles, setUploadedFiles] = createStore<{
     likes: File | null;
     dislikes: File | null;
@@ -94,10 +99,6 @@ export default function Index() {
     dislikes: null,
     langfuse: null,
   });
-  const [uploadSectionExpanded, setUploadSectionExpanded] = createSignal(true);
-  const [isLoadingFromStorage, setIsLoadingFromStorage] = createSignal(true);
-  // To display substeps
-  const [selectedDocsTab, setSelectedDocsTab] = createSignal("");
 
   /** Initialize component */
   createEffect(() => {
@@ -119,6 +120,15 @@ export default function Index() {
     if (allFilesUploaded) {
       setUploadSectionExpanded(false);
     }
+  });
+
+  /** Trigger code highlighting when filters change */
+  createEffect(() => {
+    // Track filter changes and search query
+    conversationFilters;
+    searchQuery();
+    // Delay highlighting to ensure DOM updates are complete
+    setTimeout(() => highlightAll(), 0);
   });
 
   /** Load stored files from IndexedDB on component initialization */
@@ -382,22 +392,15 @@ export default function Index() {
         <img src={githubIcon} alt="GitHub" />
       </a>
 
-      {/* Loading indicator */}
-      <Show when={isLoadingFromStorage()}>
-        <div style={{"text-align": "center", padding: "1rem"}}>
-          <p>⏳ Loading previously uploaded files...</p>
-        </div>
-      </Show>
-
       {/* File Upload */}
       <div class="upload-section">
-        <h3
+        <h4
           class="upload-header"
           onClick={() => setUploadSectionExpanded(!uploadSectionExpanded())}
           style={{cursor: "pointer", "user-select": "none"}}
         >
           📁 Upload JSONL logs files {uploadSectionExpanded() ? "🔻" : "🔺"}
-        </h3>
+        </h4>
         <Show when={uploadSectionExpanded()}>
           <div class="upload-buttons">
             <FileUpload
@@ -446,11 +449,18 @@ export default function Index() {
         </Show>
       </div>
 
+      {/* Loading indicator */}
+      <Show when={isLoadingFromStorage()}>
+        <div style={{"text-align": "center", padding: "1rem"}}>
+          <p>⏳ Loading previously uploaded files...</p>
+        </div>
+      </Show>
+
       <Show when={conversations().length > 0}>
         <SummaryTable summary={summary()} />
 
         {/* Tabs */}
-        <div class="tabs">
+        <div>
           <For each={getAvailableTabs()}>
             {tab => (
               <button
@@ -471,7 +481,7 @@ export default function Index() {
           {tab => (
             <div id={tab.key} class={`tab-content ${activeTab() === tab.key ? "active" : ""}`}>
               <div class="filters">
-                <div class="filter">
+                <div style={{display: "flex", "align-items": "center"}}>
                   <label>
                     🔍
                     <input
@@ -549,21 +559,18 @@ export default function Index() {
                 <For each={filteredConversations()}>
                   {convo => (
                     <div class="box">
-                      <h4 style={{"margin-bottom": ".5em"}}>🗓️ Conversation {convo.timestamp}</h4>
+                      <h4>🗓️ Conversation {convo.timestamp}</h4>
 
                       {/* Display messages */}
                       <For each={convo.messages} fallback={<div>No messages found</div>}>
-                        {(message, index) => (
-                          <div
-                            class={`round ${convo.messages.length % 2 === 1 && index() === convo.messages.length - 1 ? "incomplete-round" : ""}`}
-                          >
-                            <div
-                              class={`message ${["user", "human"].includes(message.role) ? "user-icon" : "assistant-icon"}`}
-                            >
-                                <span style={{"margin-left": ".2em", color: "#999999"}}>{message.role}</span>
-                              <br />
+                        {(msg) => (
+                          <div class={["user", "human"].includes(msg.role) ? "user-round" : ""}>
+                            {/* class={`round ${convo.messages.length % 2 === 1 && index() === convo.messages.length - 1 ? "incomplete-round" : ""}`} */}
+                            <div class="message">
+                              {/* class={`message ${["user", "human"].includes(message.role) ? "user-icon" : "assistant-icon"}`} */}
+                              {/* <span style={{"margin-left": ".2em", color: "#999999"}}>{message.role}</span><br /> */}
                               {/* eslint-disable-next-line solid/no-innerhtml */}
-                              <article innerHTML={renderMarkdown(message.content)} />
+                              <article innerHTML={renderMarkdown(msg.content)} />
                             </div>
                           </div>
                         )}
@@ -571,7 +578,7 @@ export default function Index() {
 
                       {/* Display steps */}
                       <Show when={convo.steps.length > 0 || convo.totalCost}>
-                        <div class="steps-box">
+                        <div class="steps-box" >
                           {convo.totalCost && (
                             <button
                               style={{"background-color": "#f3f3f3", border: "none", cursor: "help"}}
@@ -601,7 +608,7 @@ Tokens usage:
                                   }}
                                 >
                                   <div>
-                                    <div style={{display: "flex", gap: ".5em", "margin-bottom": "1rem"}}>
+                                    <div style={{display: "flex", gap: ".5em", "margin-bottom": "1rem", "flex-wrap": "wrap", "align-items": "stretch"}}>
                                       <For each={step.substeps!.map(substep => substep.label)}>
                                         {label => (
                                           <button
@@ -632,10 +639,7 @@ Tokens usage:
                               ) : step.details ? (
                                 <Dialog
                                   trigger={
-                                    <button
-                                      class="btn-step"
-                                      title={`Click to see the documents used to generate the response\n\nNode: ${step.node_id}`}
-                                    >
+                                    <button class="btn-step" title="Click to see the details of the step">
                                       {step.label}
                                     </button>
                                   }

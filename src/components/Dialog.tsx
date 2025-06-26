@@ -86,16 +86,18 @@ export default function Dialog(props: DialogProps) {
               title={`Close ${props.title || "dialog"}`}
               onClick={closeDialog}
               style={{
-                position: "absolute",
-                top: "1rem",
-                right: "1rem",
-                border: "none",
-                cursor: "pointer",
-                padding: "0.5rem",
-                display: "flex",
-                "align-items": "center",
-                "justify-content": "center",
-                "border-radius": "50%",
+              position: "absolute",
+              "background-color": "#f0f0f0",
+              top: "1rem",
+              right: "1rem",
+              border: "none",
+              cursor: "pointer",
+              padding: "0.35rem",
+              display: "flex",
+              "align-items": "center",
+              "justify-content": "center",
+              "border-radius": "50%",
+              transform: "scale(0.8)",
               }}
             >
               <img src={xIcon} alt="Close dialog" class="iconBtn" />
