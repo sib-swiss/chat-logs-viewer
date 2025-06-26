@@ -18,6 +18,11 @@ a:hover {
   text-decoration: underline;
 }
 
+h4 {
+  color: #333;
+  margin: 0;
+}
+
 /* Viewer Styles */
 .qa-viewer {
   padding: 1em;
@@ -31,15 +36,6 @@ a:hover {
   background: white;
   border: 1px dashed #ccc;
   border-radius: 10px;
-}
-
-h4 {
-  color: #333;
-}
-
-.upload-section h4 {
-  margin-top: 0;
-  margin-bottom: 0;
 }
 
 .upload-header {
