@@ -18,12 +18,14 @@
     "highlight.js": "^11.11.1",
     "marked": "^15.0.12",
     "solid-js": "^1.9.7",
+    "sparqljs": "^3.7.3",
     "vinxi": "^0.5.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^24.0.4",
+    "@types/sparqljs": "^3.1.12",
     "eslint": "^9.29.0",
     "eslint-plugin-solid": "^0.14.5",
     "globals": "^16.2.0",

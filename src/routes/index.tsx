@@ -12,13 +12,15 @@ import githubIcon from "~/assets/github.svg";
 import FileUpload from "~/components/FileUpload";
 import SummaryTable, {Summary} from "~/components/SummaryTable";
 import Dialog from "~/components/Dialog";
-import {executeSparqlQuery, formatSparqlResults} from "~/utils/query-sparql";
+import {countBGPs, executeSparqlQuery, formatSparqlResults, SparqlResponse} from "~/utils/query-sparql";
 import {hljsDefineSparql, hljsDefineTurtle} from "~/utils/highlight-sparql";
-import {storeFile, getAllStoredFiles, createFileFromStored, clearAllStoredFiles} from "~/utils/storage";
+import {storeFile, getAllStoredFiles, createFileFromStored, clearAllStoredFiles, storeConversations, getStoredConversations, updateConversationSparqlResults} from "~/utils/storage";
 
 interface SparqlBlock {
   endpoint: string;
   query: string;
+  results?: any[], // Query bindings
+  bgp_count?: number; // Count of BGPs in the query
 }
 
 interface Message {
@@ -57,6 +59,7 @@ hljs.registerLanguage("python", python);
 hljs.registerLanguage("r", r);
 
 export default function Index() {
+  // Signals
   const [activeTab, setActiveTab] = createSignal<string>("langfuse");
   const [conversations, setConversations] = createSignal<Conversation[]>([]);
   const [summary, setSummary] = createSignal<Summary>({
@@ -75,6 +78,8 @@ export default function Index() {
   const [selectedDocsTab, setSelectedDocsTab] = createSignal("");
   const [searchQuery, setSearchQuery] = createSignal<string>("");
 
+  // Stores
+  // Filters and uploaded files
   const [conversationFilters, setConversationFilters] = createStore<
     Record<
       string,
@@ -83,12 +88,13 @@ export default function Index() {
         withoutSparql: boolean;
         withInvalidQuery: boolean;
         minMessages: number;
+        minBgps: number;
       }
     >
   >({
-    likes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1},
-    dislikes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1},
-    langfuse: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1},
+    likes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
+    dislikes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
+    langfuse: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
   });
   const [uploadedFiles, setUploadedFiles] = createStore<{
     likes: File | null;
@@ -99,6 +105,8 @@ export default function Index() {
     dislikes: null,
     langfuse: null,
   });
+  // Progress tracking SPARQL queries execution
+  const [progress, setProgress] = createStore<Record<string, { executed: number; total: number; percent: number }>>({});
 
   /** Initialize component */
   createEffect(() => {
@@ -201,6 +209,9 @@ export default function Index() {
                 ? {
                     endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
                     query: data.output.structured_output["sparql_query"] || "",
+                    bgp_count: data.output.structured_output["sparql_query"]
+                      ? countBGPs(data.output.structured_output["sparql_query"])
+                      : 0,
                   }
                 : undefined,
             };
@@ -225,6 +236,15 @@ export default function Index() {
             messages: data.messages || [],
             steps: conversationSteps,
             totalCost: data.totalCost || 0,
+            sparql_block: data.sparql_block
+              ? {
+                  endpoint: data.sparql_block.endpoint || "",
+                  query: data.sparql_block.query || "",
+                  bgp_count: data.sparql_block.query
+                    ? countBGPs(data.sparql_block.query)
+                    : 0,
+                }
+              : undefined,
           };
           newConversations.push(conversation);
         }
@@ -238,7 +258,36 @@ export default function Index() {
       if (fileType === "langfuse") return c.label !== "langfuse";
       return c.label !== fileType;
     });
+
+    // Try to load cached SPARQL results from storage
+    try {
+      const cachedConversations = await getStoredConversations(fileType);
+      if (cachedConversations) {
+        // Merge cached results with new conversations
+        newConversations.forEach(newConvo => {
+          const cached = cachedConversations.find(c => c.timestamp === newConvo.timestamp);
+          if (cached?.sparql_block?.results && newConvo.sparql_block) {
+            newConvo.sparql_block.results = cached.sparql_block.results;
+          }
+          // Ensure BGP count is calculated if missing and we have a query
+          if (newConvo.sparql_block && newConvo.sparql_block.query && newConvo.sparql_block.bgp_count === undefined) {
+            newConvo.sparql_block.bgp_count = countBGPs(newConvo.sparql_block.query);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn("Failed to load cached SPARQL results:", error);
+    }
+
     setConversations([...otherConversations, ...newConversations]);
+
+    // Store conversations for future caching
+    try {
+      await storeConversations(fileType, newConversations);
+    } catch (error) {
+      console.warn("Failed to store conversations:", error);
+    }
+
     updateSummary();
     highlightAll();
   };
@@ -308,14 +357,89 @@ export default function Index() {
     });
   };
 
-  const runSparql = async (endpoint: string, query: string, resultElement: HTMLElement) => {
+  const runSparql = async (endpoint: string, query: string, resultElement: HTMLElement, conversation?: Conversation, forceRefresh: boolean = false) => {
+    // Check if we already have cached results and not forcing refresh
+    if (conversation?.sparql_block?.results && !forceRefresh) {
+      const cachedResponse: SparqlResponse = {
+        success: true,
+        result: {
+          results: {
+            bindings: conversation.sparql_block.results
+          }
+        }
+      };
+      resultElement.innerHTML = `<span style="background-color: #e6f3ff; color: #0066cc; padding: 0.2rem 0.4rem; border-radius: 3px; font-size: 0.8rem;">📋 Using cached results</span><br>` + formatSparqlResults(cachedResponse);
+      return;
+    }
+
     resultElement.innerHTML = "⏳ Running query (60s timeout)...";
     try {
       const data = await executeSparqlQuery(endpoint, query);
       resultElement.innerHTML = formatSparqlResults(data);
+
+      // Store results if we have a conversation context and results exist
+      if (conversation && data.success && data.result?.results?.bindings && data.result.results.bindings.length > 0) {
+        // Update the conversation object
+        if (conversation.sparql_block) {
+          conversation.sparql_block.results = data.result.results.bindings;
+        }
+
+        // Persist to IndexedDB
+        await updateConversationSparqlResults(
+          conversation.label,
+          conversation.timestamp,
+          data.result.results.bindings
+        );
+      }
     } catch (error) {
       resultElement.innerHTML = `<span class='tag-fail'>❌ Error</span><br><pre>${error}</pre>`;
     }
+  };
+
+  const executeAllSparql = async (tabId: string) => {
+    // Get conversations with valid SPARQL queries (both endpoint and query present) for the active tab
+    const conversationsWithSparql = filteredConversations().filter(convo =>
+      convo.sparql_block &&
+      convo.sparql_block.endpoint &&
+      convo.sparql_block.query &&
+      convo.sparql_block.endpoint.trim() !== '' &&
+      convo.sparql_block.query.trim() !== ''
+    );
+    if (!conversationsWithSparql.length) return;
+
+    const total = conversationsWithSparql.length;
+    setProgress(tabId, { executed: 0, total, percent: 0 });
+
+    let completedCount = 0;
+
+    // Create promises for all SPARQL executions
+    const executionPromises = conversationsWithSparql.map(async (convo, index) => {
+      if (!convo.sparql_block) return;
+      const { endpoint, query } = convo.sparql_block;
+
+      // Find the corresponding result element in the DOM
+      const sparqlBoxes = document.querySelectorAll(`#${tabId} .sparql-box`);
+      const resultBox = sparqlBoxes[index]?.querySelector('.sparql-result') as HTMLElement;
+
+      if (resultBox) {
+        // Force refresh when executing all queries
+        await runSparql(endpoint, query, resultBox, convo, true);
+      }
+
+      // Update progress after each query completes
+      completedCount++;
+      setProgress(tabId, {
+        executed: completedCount,
+        total,
+        percent: Math.round((completedCount / total) * 100)
+      });
+    });
+
+    // Execute all queries in parallel
+    await Promise.all(executionPromises);
+
+    // Trigger re-render to update cached results display
+    setConversations([...conversations()]);
   };
 
   const getAvailableTabs = () => {
@@ -341,6 +465,11 @@ export default function Index() {
       if (!hasSparql && !filters.withoutSparql) return false;
       if (!hasInvalidQueryStep && filters.withInvalidQuery) return false;
       if (convo.messages.length < filters.minMessages) return false;
+      // Filter by minimum BGPs - if minBgps > 0, exclude conversations without SPARQL
+      if (filters.minBgps > 0 && !hasSparql) return false;
+      if (hasSparql && convo.sparql_block?.bgp_count !== undefined) {
+        if (convo.sparql_block.bgp_count < filters.minBgps) return false;
+      }
       // Filter by search query
       const search = searchQuery().toLowerCase().trim();
       if (search) {
@@ -350,6 +479,19 @@ export default function Index() {
       }
       return true;
     });
+  };
+
+  /** Render cached SPARQL results */
+  const renderCachedSparqlResults = (results: any[]): string => {
+    const cachedResponse: SparqlResponse = {
+      success: true,
+      result: {
+        results: {
+          bindings: results
+        }
+      }
+    };
+    return `<span style="background-color: #e6f3ff; color: #0066cc; padding: 0.2rem 0.4rem; border-radius: 3px; font-size: 0.8rem;">📋 Displaying cached results</span><br>` + formatSparqlResults(cachedResponse);
   };
 
   // Memoization cache for parsed markdown to avoid recomputing
@@ -536,24 +678,34 @@ export default function Index() {
                     />
                   </label>
                 </div>
+                <div class="filter" title="Minimum number of BGPs in the SPARQL query">
+                  <label>
+                    Min BGPs:
+                    <input
+                      type="number"
+                      min="0"
+                      value={conversationFilters[tab.key].minBgps}
+                      onInput={e => setConversationFilters(tab.key, "minBgps", parseInt(e.target.value) || 0)}
+                      style={{width: "60px"}}
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* <button onClick={() => executeAllSparql(tab.key)}>
+              <button onClick={() => executeAllSparql(tab.key)}>
                 Execute All SPARQL Queries
               </button>
+              {/* Progress bar */}
               <Show when={progress[tab.key]}>
                 <div class="execute-all-report">
                   <div class="progress-bar">
-                    <div
-                      class="progress-bar-inner"
-                      style={`width: ${progress[tab.key]?.percent || 0}%`}
-                    ></div>
+                    <div class="progress-bar-inner" style={{width: `${progress[tab.key]?.percent || 0}%`}} />
                   </div>
                   <div class="progress-label">
                     Executed {progress[tab.key]?.executed || 0}/{progress[tab.key]?.total || 0}
                   </div>
                 </div>
-              </Show> */}
+              </Show>
 
               <Show when={activeTab() === tab.key}>
                 <For each={filteredConversations()}>
@@ -669,6 +821,31 @@ Tokens usage:
                               <a href={convo.sparql_block.endpoint} target="_blank" rel="noopener noreferrer">
                                 {convo.sparql_block.endpoint}
                               </a>
+                              {convo.sparql_block.bgp_count !== undefined && convo.sparql_block.bgp_count > 0 && (
+                                <span style={{
+                                  "margin-left": "1rem",
+                                  "background-color": "#f0f8ff",
+                                  color: "#4a5568",
+                                  padding: "0.2rem 0.4rem",
+                                  "border-radius": "3px",
+                                  "font-size": "0.8rem",
+                                  border: "1px solid #cbd5e0"
+                                }}>
+                                  {convo.sparql_block.bgp_count} BGP{convo.sparql_block.bgp_count !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {convo.sparql_block.results && (
+                                <span style={{
+                                  "margin-left": "1rem",
+                                  "background-color": "#e6f3ff",
+                                  color: "#0066cc",
+                                  padding: "0.2rem 0.4rem",
+                                  "border-radius": "3px",
+                                  "font-size": "0.8rem"
+                                }}>
+                                  📋 Results cached ({convo.sparql_block.results.length} rows)
+                                </span>
+                              )}
                             </div>
                             <pre>
                               <code class="language-sparql">{convo.sparql_block.query}</code>
@@ -678,14 +855,19 @@ Tokens usage:
                                 const box = e.target.closest(".sparql-box");
                                 const resultBox = box?.querySelector(".sparql-result") as HTMLElement;
                                 if (resultBox && convo.sparql_block) {
-                                  runSparql(convo.sparql_block.endpoint, convo.sparql_block.query, resultBox);
+                                  runSparql(convo.sparql_block.endpoint, convo.sparql_block.query, resultBox, convo);
                                 }
                               }}
                             >
                               <img src={sendIcon} style={{color: "white"}} alt="Execute the query" class="iconBtn" />{" "}
                               Execute
                             </button>
-                            <div class="sparql-result" />
+                            <div class="sparql-result">
+                              <Show when={convo.sparql_block.results}>
+                                {/* eslint-disable-next-line solid/no-innerhtml */}
+                                <div innerHTML={renderCachedSparqlResults(convo.sparql_block.results!)} />
+                              </Show>
+                            </div>
                           </div>
                         )}
                       </Show>
@@ -700,22 +882,3 @@ Tokens usage:
     </div>
   );
 }
-
-// const [progress, setProgress] = createStore<Record<string, { executed: number; total: number; percent: number }>>({});
-// const executeAllSparql = async (tabId: string) => {
-//   const sparqlBoxes = document.querySelectorAll(`#${tabId} .sparql-box`);
-//   if (!sparqlBoxes.length) return;
-//   const total = sparqlBoxes.length;
-//   setProgress(tabId, { executed: 0, total, percent: 0 });
-//   let executed = 0;
-//   for (const box of Array.from(sparqlBoxes)) {
-//     const endpoint = box.getAttribute('data-endpoint') || '';
-//     const query = box.querySelector('pre')?.textContent || '';
-//     const resultBox = box.querySelector('.sparql-result') as HTMLElement;
-//     if (resultBox) {
-//       await runSparql(endpoint, query, resultBox);
-//     }
-//     executed++;
-//     setProgress(tabId, { executed, total, percent: Math.round((executed / total) * 100) });
-//   }
-// };

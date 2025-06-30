@@ -1,3 +1,5 @@
+import {Parser} from "sparqljs";
+
 // API utilities for SPARQL execution
 
 export interface SparqlResponse {
@@ -68,3 +70,21 @@ export function formatSparqlResults(data: SparqlResponse): string {
   }
   return table;
 }
+
+/** Count BGPs (Basic Graph Patterns) in a SPARQL query */
+export const countBGPs = (sparqlQuery: string): number => {
+  let count = 0;
+  try {
+    const parser = new Parser();
+    const parsed: any = parser.parse(sparqlQuery);
+    for (const block of parsed.where) {
+      if (block.type === "bgp") {
+        count += block.triples.length;
+      }
+    }
+    return count;
+  } catch (error) {
+    console.warn('Failed to parse SPARQL query for BGP counting:', error);
+    return 0;
+  }
+};

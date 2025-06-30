@@ -3,8 +3,9 @@
  */
 
 const DB_NAME = "ChatLogsViewerDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Increment version to add new object store
 const STORE_NAME = "uploadedFiles";
+const CONVERSATIONS_STORE_NAME = "conversations";
 
 interface StoredFile {
   id: string; // "likes", "dislikes", or "langfuse"
@@ -34,6 +35,12 @@ const initDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, {keyPath: "id"});
         store.createIndex("uploadedAt", "uploadedAt", {unique: false});
+      }
+      // Create conversations store for persisting SPARQL results
+      if (!db.objectStoreNames.contains(CONVERSATIONS_STORE_NAME)) {
+        const conversationsStore = db.createObjectStore(CONVERSATIONS_STORE_NAME, {keyPath: "id"});
+        conversationsStore.createIndex("label", "label", {unique: false});
+        conversationsStore.createIndex("updatedAt", "updatedAt", {unique: false});
       }
     };
   });
@@ -150,4 +157,80 @@ export const createFileFromStored = (storedFile: StoredFile): File => {
     lastModified: storedFile.lastModified,
   });
   return file;
+};
+
+export { type StoredFile };
+
+/**
+ * Store conversations with SPARQL results
+ */
+export const storeConversations = async (label: string, conversations: any[]): Promise<void> => {
+  const db = await initDB();
+  const storedConversations = {
+    id: label,
+    label,
+    conversations,
+    updatedAt: Date.now(),
+  };
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONVERSATIONS_STORE_NAME], "readwrite");
+    const store = transaction.objectStore(CONVERSATIONS_STORE_NAME);
+    const request = store.put(storedConversations);
+    request.onsuccess = () => {
+      resolve();
+    };
+    request.onerror = () => {
+      reject(new Error(`Failed to store conversations for: ${label}`));
+    };
+  });
+};
+
+/**
+ * Get stored conversations
+ */
+export const getStoredConversations = async (label: string): Promise<any[] | null> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONVERSATIONS_STORE_NAME], "readonly");
+    const store = transaction.objectStore(CONVERSATIONS_STORE_NAME);
+    const request = store.get(label);
+    request.onsuccess = () => {
+      const result = request.result;
+      resolve(result ? result.conversations : null);
+    };
+    request.onerror = () => {
+      reject(new Error(`Failed to retrieve conversations for: ${label}`));
+    };
+  });
+};
+
+/**
+ * Update a specific conversation's SPARQL results
+ */
+export const updateConversationSparqlResults = async (
+  label: string,
+  conversationTimestamp: string,
+  results: any[]
+): Promise<void> => {
+  // Get existing conversations
+  const existingConversations = await getStoredConversations(label);
+  if (!existingConversations) return;
+
+  // Find and update the specific conversation
+  const updatedConversations = existingConversations.map(conv => {
+    if (conv.timestamp === conversationTimestamp && conv.sparql_block) {
+      return {
+        ...conv,
+        sparql_block: {
+          ...conv.sparql_block,
+          results
+        }
+      };
+    }
+    return conv;
+  });
+
+  // Store updated conversations
+  await storeConversations(label, updatedConversations);
 };
