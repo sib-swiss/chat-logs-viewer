@@ -14,7 +14,7 @@ import SummaryTable, {Summary} from "~/components/SummaryTable";
 import Dialog from "~/components/Dialog";
 import {countBGPs, executeSparqlQuery, formatSparqlResults, SparqlResponse} from "~/utils/query-sparql";
 import {hljsDefineSparql, hljsDefineTurtle} from "~/utils/highlight-sparql";
-import {storeFile, getAllStoredFiles, createFileFromStored, clearAllStoredFiles, storeConversations, getStoredConversations, updateConversationSparqlResults} from "~/utils/storage";
+import {storeConversations, getAllStoredConversations, createFileFromStored, clearAllStoredConversations, updateConversationSparqlResults} from "~/utils/storage";
 
 interface SparqlBlock {
   endpoint: string;
@@ -139,18 +139,18 @@ export default function Index() {
     setTimeout(() => highlightAll(), 0);
   });
 
-  /** Load stored files from IndexedDB on component initialization */
+  /** Load stored conversations from IndexedDB on component initialization */
   const loadStoredFiles = async () => {
     try {
-      const storedFiles = await getAllStoredFiles();
-      for (const storedFile of storedFiles) {
-        const file = createFileFromStored(storedFile);
-        setUploadedFiles(storedFile.id as "likes" | "dislikes" | "langfuse", file);
-        // Process the file content directly from storage
-        await processJsonlContent(storedFile.content, storedFile.id as "likes" | "dislikes" | "langfuse");
+      const storedConversations = await getAllStoredConversations();
+      for (const stored of storedConversations) {
+        const file = createFileFromStored(stored);
+        setUploadedFiles(stored.id as "likes" | "dislikes" | "langfuse", file);
+        // Process the conversations directly from storage
+        await processConversations(stored.conversations, stored.id as "likes" | "dislikes" | "langfuse");
       }
     } catch (error) {
-      console.warn("Failed to load stored files:", error);
+      console.warn("Failed to load stored conversations:", error);
     } finally {
       setIsLoadingFromStorage(false);
     }
@@ -161,12 +161,6 @@ export default function Index() {
     if (target.files && target.files[0]) {
       const file = target.files[0];
       setUploadedFiles(fileType, file);
-      // Store file in IndexedDB
-      try {
-        await storeFile(fileType, file);
-      } catch (error) {
-        console.warn(`Failed to store file ${file.name}:`, error);
-      }
       await processJsonlFile(file, fileType);
       setActiveTab(fileType);
     }
@@ -174,14 +168,39 @@ export default function Index() {
 
   const processJsonlFile = async (file: File, fileType: "likes" | "dislikes" | "langfuse") => {
     const text = await file.text();
-    await processJsonlContent(text, fileType);
+    const parsedConversations = await parseJsonlContent(text, fileType);
+    // Store conversations in IndexedDB
+    try {
+      await storeConversations(fileType, file, parsedConversations);
+    } catch (error) {
+      console.warn(`Failed to store conversations for ${file.name}:`, error);
+    }
+    await processConversations(parsedConversations, fileType);
   };
 
-  const processJsonlContent = async (text: string, fileType: "likes" | "dislikes" | "langfuse") => {
+  const processConversations = async (newConversations: Conversation[], fileType: "likes" | "dislikes" | "langfuse") => {
+    // Update conversations by removing old ones of this type and adding new ones
+    const otherConversations = conversations().filter(c => {
+      if (fileType === "langfuse") return c.label !== "langfuse";
+      return c.label !== fileType;
+    });
+    // Ensure BGP count is calculated for conversations with SPARQL queries
+    newConversations.forEach(convo => {
+      if (convo.sparql_block && convo.sparql_block.query && convo.sparql_block.bgp_count === undefined) {
+        convo.sparql_block.bgp_count = countBGPs(convo.sparql_block.query);
+      }
+    });
+    setConversations([...otherConversations, ...newConversations]);
+    updateSummary();
+    highlightAll();
+  };
+
+  const parseJsonlContent = async (text: string, fileType: "likes" | "dislikes" | "langfuse"): Promise<Conversation[]> => {
     const lines = text.trim().split("\n");
     const newConversations: Conversation[] = [];
     // Clear markdown memoization cache when processing new files
     renderMarkdownMemo.clear();
+
     for (const line of lines) {
       try {
         const data = JSON.parse(line);
@@ -205,6 +224,7 @@ export default function Index() {
               promptTokens: data.usage?.promptTokens || 0,
               completionTokens: data.usage?.completionTokens || 0,
               totalTokens: data.usage?.totalTokens || 0,
+              // Count BGPs in SPARQL query if available
               sparql_block: data.output.structured_output
                 ? {
                     endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
@@ -253,49 +273,13 @@ export default function Index() {
       }
     }
 
-    // Update conversations by removing old ones of this type and adding new ones
-    const otherConversations = conversations().filter(c => {
-      if (fileType === "langfuse") return c.label !== "langfuse";
-      return c.label !== fileType;
-    });
-
-    // Try to load cached SPARQL results from storage
-    try {
-      const cachedConversations = await getStoredConversations(fileType);
-      if (cachedConversations) {
-        // Merge cached results with new conversations
-        newConversations.forEach(newConvo => {
-          const cached = cachedConversations.find(c => c.timestamp === newConvo.timestamp);
-          if (cached?.sparql_block?.results && newConvo.sparql_block) {
-            newConvo.sparql_block.results = cached.sparql_block.results;
-          }
-          // Ensure BGP count is calculated if missing and we have a query
-          if (newConvo.sparql_block && newConvo.sparql_block.query && newConvo.sparql_block.bgp_count === undefined) {
-            newConvo.sparql_block.bgp_count = countBGPs(newConvo.sparql_block.query);
-          }
-        });
-      }
-    } catch (error) {
-      console.warn("Failed to load cached SPARQL results:", error);
-    }
-
-    setConversations([...otherConversations, ...newConversations]);
-
-    // Store conversations for future caching
-    try {
-      await storeConversations(fileType, newConversations);
-    } catch (error) {
-      console.warn("Failed to store conversations:", error);
-    }
-
-    updateSummary();
-    highlightAll();
+    return newConversations;
   };
 
   /** Clear all stored data */
   const clearStoredData = async () => {
     try {
-      await clearAllStoredFiles();
+      await clearAllStoredConversations();
       // Reset the state
       setUploadedFiles("likes", null);
       setUploadedFiles("dislikes", null);
@@ -386,7 +370,7 @@ export default function Index() {
 
         // Persist to IndexedDB
         await updateConversationSparqlResults(
-          conversation.label,
+          conversation.label as "likes" | "dislikes" | "langfuse",
           conversation.timestamp,
           data.result.results.bindings
         );
