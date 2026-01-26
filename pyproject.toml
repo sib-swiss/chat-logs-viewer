@@ -1,0 +1,10 @@
+[project]
+name = "chat-logs-merger"
+version = "0.1.0"
+description = "Scripts to merge ExpasyGPT conversation logs"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic",
+    "sparql-llm",
+]

@@ -24,3 +24,7 @@ app.config.timestamp_*.js
 # System Files
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+uv.lock
