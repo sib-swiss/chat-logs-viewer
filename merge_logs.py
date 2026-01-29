@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 import re
+import time
+from datetime import datetime
 
 from pydantic import BaseModel
 from sparql_llm.validate_sparql import extract_sparql_queries
@@ -181,6 +183,8 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 
 
 if __name__ == '__main__':
+	start_time = time.time()
+
 	counts = merge_logs()
 	print(f'Input lines: {counts["total"]}')
 	print(f'Unique timestamps written: {counts["unique"]}')
@@ -188,4 +192,11 @@ if __name__ == '__main__':
 	print(f'No output field entries skipped: {counts["no_output"]}')
 	print(f'Messages with SPARQL results: {counts["msgs_with_results"]}')
 	print(f'Messages with no SPARQL results: {counts["msgs_no_results"]}')
+
+	# Compute and print elapsed runtime in hours/min
+	elapsed = time.time() - start_time
+	hours = int(elapsed // 3600)
+	minutes = int((elapsed % 3600) // 60)
+	seconds = int(elapsed % 60)
+	print(f'Runtime: {hours}h {minutes}m ({seconds}s) — {elapsed/60:.2f} minutes')
 	print('Output file: data/langfuse.jsonl')
