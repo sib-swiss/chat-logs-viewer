@@ -16,6 +16,7 @@ example_questions = [
 	"Where is the ACE2 gene expressed in humans?",
 	"List primate genes expressed in the fruit fly eye",
 	"What are the rat orthologs of the human HBB gene?",
+	"What are the rat orthologs of the human TP53 gene?",
 	"What is the HGNC symbol for the P68871 protein?",
 	"Anatomical entities where the INS zebrafish gene is expressed and their gene GO annotations",
 ]
@@ -58,7 +59,7 @@ def extract_and_exec_sparql(question: str, ai_message: str) -> QueryResults | No
 
 		try:
 			# print(f'🔍 Executing SPARQL query against endpoint {endpoint}:\n{query_to_run}')
-			resp = query_sparql(query_to_run, endpoint, timeout=20, post=True)
+			resp = query_sparql(query_to_run, endpoint, timeout=60, post=True)
 			# TODO: handle construct queries
 			query_res = resp.get("results", {}).get("bindings", [])
 		except Exception as e:
@@ -90,6 +91,7 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 		'example_only': 0,
 		"msgs_with_results": 0,
 		"msgs_no_results": 0,
+		"example_msgs": 0,
 	}
 
 	out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -149,6 +151,8 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 								if msg.get('type') == 'human':
 									# Store the natural language question
 									question = msg.get('content', '').strip()
+									if question in example_questions:
+										counts["example_msgs"] += 1
 								# print(msg)
 								if msg.get('type') == 'ai':
 									try:
@@ -192,6 +196,7 @@ if __name__ == '__main__':
 	print(f'No output field entries skipped: {counts["no_output"]}')
 	print(f'Messages with SPARQL results: {counts["msgs_with_results"]}')
 	print(f'Messages with no SPARQL results: {counts["msgs_no_results"]}')
+	print(f'Example messages not skipped: {counts["example_msgs"]}')
 
 	# Compute and print elapsed runtime in hours/min
 	elapsed = time.time() - start_time
