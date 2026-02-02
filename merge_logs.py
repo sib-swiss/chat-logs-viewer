@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 import re
 import time
-from datetime import datetime
 
 from pydantic import BaseModel
 from sparql_llm.validate_sparql import extract_sparql_queries
@@ -76,14 +75,19 @@ def extract_and_exec_sparql(question: str, ai_message: str) -> QueryResults | No
 
 
 def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str, int]":
-	"""Merge all JSONL files in `in_path` into `out_path`, deduplicating by `timestamp`.
+	"""Merge all JSONL files in `in_path` into `out_path`, deduplicating by conversation thread.
 
-	Writes each unique line immediately when a new timestamp is seen.
+	Processes files from newest to oldest, reading each file in reverse to keep only the most
+	recent/complete version of each conversation thread. Deduplication is based on the first
+	human message + last AI response signature to identify conversation threads.
+
 	Returns (input_lines, unique_written).
 	"""
 	out_file = Path(out_path)
-	files = sorted(Path(in_dir).glob('*.jsonl'))
-	seen = set()
+	# Sort files in reverse chronological order (newest first)
+	files = sorted(Path(in_dir).glob('*.jsonl'), reverse=True)
+	seen_timestamps = set()
+	seen_conversations = set()  # Track conversation threads by signature
 	counts = {
 		'total': 0,
 		'no_output': 0,
@@ -92,15 +96,19 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 		"msgs_with_results": 0,
 		"msgs_no_results": 0,
 		"example_msgs": 0,
+		"duplicate_threads": 0,
 	}
 
 	out_file.parent.mkdir(parents=True, exist_ok=True)
+
 	with out_file.open('w', encoding='utf-8') as out:
 		for f in files:
 			print(f'📂 Processing file: {f}')
 			try:
 				with f.open('r', encoding='utf-8') as fh:
-					for line in fh:
+					# Read all lines and reverse them to process newest entries first
+					lines = fh.readlines()
+					for line in reversed(lines):
 						line = line.strip()
 						if not line:
 							continue
@@ -131,29 +139,55 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 									continue
 							if out_field is None:
 								counts['no_output'] += 1
-								# print(f'⚠️ No output field: {line}')
 								continue
 							msgs = out_field.get('messages', [])
 							if len(msgs) == 0:
 								counts['no_output'] += 1
-								# print(f'⚠️ No messages: {line}')
 								continue
-							if len(msgs) == 2 and msgs[0].get("content", "").strip() in example_questions:
+							if len(obj.get('input', [])) == 1 and msgs[0].get("content", "").strip() in example_questions:
 								counts['example_only'] += 1
 								continue
 
-							# TODO: some conversations have "output":"ValueError: EOF while parsing a value at line 2 column 0"
-							# But we can extract the conversation from "input" (list of tuples ["user|assistant", "message"])
+							# Check timestamp deduplication
+							ts = obj.get('timestamp')
+							if not ts:
+								continue
+							if ts in seen_timestamps:
+								continue
+							seen_timestamps.add(ts)
 
-							# Iterates messages, if msg from `ai`, try to extract SPARQL query, execute it
+							# Create conversation signature: first human msg + last AI response to first human msg
+							first_human_msg = None
+							first_ai_response = None
+							found_first_human = False
+							for msg in msgs:
+								if msg.get('type') == 'human' and msg.get("name", "") not in ["retrieve_docs", "execute_sparql_query"]:
+									if not found_first_human:
+										first_human_msg = msg.get('content', '').strip()
+										found_first_human = True
+									else:
+										# Found second human message that is not retrieve_docs context msg, stop here
+										break
+								elif msg.get('type') == 'ai' and found_first_human:
+									# Keep updating - we want the LAST AI message before next human or end
+									first_ai_response = msg.get('content', '').strip()
+
+							# Skip if we've already seen this conversation thread (newer version already processed)
+							if first_human_msg and first_ai_response:
+								conv_signature = f"{first_human_msg}:::{first_ai_response}"
+								if conv_signature in seen_conversations:
+									counts['duplicate_threads'] += 1
+									continue
+								seen_conversations.add(conv_signature)
+
+							# Execute SPARQL queries and write immediately
 							question: str = ""
 							for msg in msgs:
-								if msg.get('type') == 'human':
-									# Store the natural language question
+								if msg.get('type') == 'human' and msg.get("name", "") != "retrieve_docs":
 									question = msg.get('content', '').strip()
 									if question in example_questions:
 										counts["example_msgs"] += 1
-								# print(msg)
+
 								if msg.get('type') == 'ai':
 									try:
 										query_results = extract_and_exec_sparql(question, msg.get('content', ''))
@@ -162,24 +196,18 @@ def merge_logs(in_dir='data/logs', out_path='data/langfuse.jsonl') -> "dict[str,
 												counts["msgs_with_results"] += 1
 											else:
 												counts["msgs_no_results"] += 1
-											# print(f'✅ Extracted and executed SPARQL for question: {question}')
 											msg['query_results'] = query_results.model_dump()
 										else:
 											counts["msgs_no_results"] += 1
 									except Exception as e:
-										print(f'⚠️ Failed to extract/execute SPARQL: {e} - {line}')
-										# continue
+										print(f'⚠️ Failed to extract/execute SPARQL: {e}')
+
+							out.write(json.dumps(obj, ensure_ascii=False) + '\n')
+							counts['unique'] += 1
+
 						except Exception as e:
 							print(f'⚠️ ❌ {e} - {line}')
 							continue
-						ts = obj.get('timestamp')
-						if not ts:
-							continue
-						if ts in seen:
-							continue
-						out.write(json.dumps(obj, ensure_ascii=False) + '\n')
-						seen.add(ts)
-						counts['unique'] += 1
 			except FileNotFoundError:
 				continue
 
@@ -190,8 +218,10 @@ if __name__ == '__main__':
 	start_time = time.time()
 
 	counts = merge_logs()
+	print('\n📊 Summary:')
 	print(f'Input lines: {counts["total"]}')
-	print(f'Unique timestamps written: {counts["unique"]}')
+	print(f'Unique conversations written: {counts["unique"]}')
+	print(f'Duplicate conversation threads skipped: {counts["duplicate_threads"]}')
 	print(f'Example only entries skipped: {counts["example_only"]}')
 	print(f'No output field entries skipped: {counts["no_output"]}')
 	print(f'Messages with SPARQL results: {counts["msgs_with_results"]}')
