@@ -80,9 +80,36 @@ export default function Index() {
       }
     >
   >({
-    likes: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
-    dislikes: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
-    langfuse: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
+    likes: {
+      withSparql: true,
+      withoutSparql: false,
+      withInvalidQuery: false,
+      minMessages: 1,
+      minBgps: 0,
+      withMultipleResults: false,
+      withZeroResults: false,
+      withErrors: false,
+    },
+    dislikes: {
+      withSparql: true,
+      withoutSparql: false,
+      withInvalidQuery: false,
+      minMessages: 1,
+      minBgps: 0,
+      withMultipleResults: false,
+      withZeroResults: false,
+      withErrors: false,
+    },
+    langfuse: {
+      withSparql: true,
+      withoutSparql: false,
+      withInvalidQuery: false,
+      minMessages: 1,
+      minBgps: 0,
+      withMultipleResults: false,
+      withZeroResults: false,
+      withErrors: false,
+    },
   });
 
   // Track uploaded files for display (mock File objects)
@@ -122,7 +149,7 @@ export default function Index() {
           withErrors: filters.withErrors,
         },
         currentPage(),
-        PAGE_SIZE
+        PAGE_SIZE,
       );
       setPaginatedResult(result);
       // Highlight code after DOM updates
@@ -231,11 +258,27 @@ export default function Index() {
   /** Parse JSONL file content */
   const parseJsonlFile = async (
     file: File,
-    fileType: "likes" | "dislikes" | "langfuse"
-  ): Promise<Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">[]> => {
+    fileType: "likes" | "dislikes" | "langfuse",
+  ): Promise<
+    Omit<
+      Conversation,
+      | "id"
+      | "hasSparql"
+      | "hasInvalidQuery"
+      | "messageCount"
+      | "bgpCount"
+      | "searchText"
+      | "hasMultipleResults"
+      | "hasZeroResults"
+      | "hasErrors"
+    >[]
+  > => {
     const text = await file.text();
     const lines = text.trim().split("\n");
-    const conversations: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText">[] = [];
+    const conversations: Omit<
+      Conversation,
+      "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText"
+    >[] = [];
 
     // Clear markdown memoization cache
     renderMarkdownMemo.clear();
@@ -263,16 +306,16 @@ export default function Index() {
               totalTokens: data.usage?.totalTokens || 0,
               sparql_block: data.output.structured_output
                 ? {
-                  endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
-                  query: data.output.structured_output["sparql_query"] || "",
-                  bgp_count: data.output.structured_output["sparql_query"]
-                    ? countBGPs(data.output.structured_output["sparql_query"])
-                    : 0,
-                }
+                    endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
+                    query: data.output.structured_output["sparql_query"] || "",
+                    bgp_count: data.output.structured_output["sparql_query"]
+                      ? countBGPs(data.output.structured_output["sparql_query"])
+                      : 0,
+                  }
                 : undefined,
               hasMultipleResults: false,
               hasZeroResults: false,
-              hasErrors: false
+              hasErrors: false,
             });
           }
         } else {
@@ -295,14 +338,14 @@ export default function Index() {
             totalCost: data.totalCost || 0,
             sparql_block: data.sparql_block
               ? {
-                endpoint: data.sparql_block.endpoint || "",
-                query: data.sparql_block.query || "",
-                bgp_count: data.sparql_block.query ? countBGPs(data.sparql_block.query) : 0,
-              }
+                  endpoint: data.sparql_block.endpoint || "",
+                  query: data.sparql_block.query || "",
+                  bgp_count: data.sparql_block.query ? countBGPs(data.sparql_block.query) : 0,
+                }
               : undefined,
             hasMultipleResults: false,
             hasZeroResults: false,
-            hasErrors: false
+            hasErrors: false,
           });
         }
       } catch (e) {
@@ -595,17 +638,21 @@ export default function Index() {
 
               {/* Pagination controls and info */}
               <Show when={activeTab() === tab.key}>
-                <div class="pagination-info" style={{
-                  display: "flex",
-                  "justify-content": "space-between",
-                  "align-items": "center",
-                  padding: "0.5rem 0",
-                  "margin-bottom": "0.5rem",
-                  "border-bottom": "1px solid #eee",
-                }}>
+                <div
+                  class="pagination-info"
+                  style={{
+                    display: "flex",
+                    "justify-content": "space-between",
+                    "align-items": "center",
+                    padding: "0.5rem 0",
+                    "margin-bottom": "0.5rem",
+                    "border-bottom": "1px solid #eee",
+                  }}
+                >
                   <span style={{color: "#666"}}>
                     Showing {paginatedResult().conversations.length} of {paginatedResult().total} conversations
-                    {paginatedResult().totalPages > 1 && ` (Page ${paginatedResult().page} of ${paginatedResult().totalPages})`}
+                    {paginatedResult().totalPages > 1 &&
+                      ` (Page ${paginatedResult().page} of ${paginatedResult().totalPages})`}
                   </span>
 
                   <Show when={paginatedResult().totalPages > 1}>
@@ -638,20 +685,26 @@ export default function Index() {
                             }
                           }}
                           style={{width: "50px", "text-align": "center"}}
-                        />
-                        {" "}of {paginatedResult().totalPages}
+                        />{" "}
+                        of {paginatedResult().totalPages}
                       </span>
                       <button
                         onClick={() => goToPage(currentPage() + 1)}
                         disabled={currentPage() === paginatedResult().totalPages}
-                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer"}}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                        }}
                       >
                         ▶️
                       </button>
                       <button
                         onClick={() => goToPage(paginatedResult().totalPages)}
                         disabled={currentPage() === paginatedResult().totalPages}
-                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer"}}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                        }}
                       >
                         ⏭️
                       </button>
@@ -662,8 +715,8 @@ export default function Index() {
                 <For each={paginatedResult().conversations}>
                   {convo => (
                     <div class="box">
-                      <h4 
-                        onClick={() => setExpandedConversations(convo.id!, prev => !(prev ?? true))} 
+                      <h4
+                        onClick={() => setExpandedConversations(convo.id!, prev => !(prev ?? true))}
                         style={{cursor: "pointer", "user-select": "none"}}
                       >
                         {(expandedConversations[convo.id!] ?? true) ? "🔽" : "▶️"} Conversation {convo.timestamp}
@@ -671,206 +724,224 @@ export default function Index() {
 
                       <Show when={expandedConversations[convo.id!] ?? true}>
                         {/* Display messages */}
-                      <For each={convo.messages} fallback={<div>No messages found</div>}>
-                        {msg => (
-                          <div class={["user", "human"].includes(msg.role) ? "user-round" : ""}>
-                            <div class="message">
-                              {((msg.content || "").length || 0) > 7000 ? (
-                                <Dialog
-                                  trigger={
-                                    <button
-                                      title="Show full message"
+                        <For each={convo.messages} fallback={<div>No messages found</div>}>
+                          {msg => (
+                            <div class={["user", "human"].includes(msg.role) ? "user-round" : ""}>
+                              <div class="message">
+                                {((msg.content || "").length || 0) > 7000 ? (
+                                  <Dialog
+                                    trigger={
+                                      <button
+                                        title="Show full message"
+                                        style={{
+                                          padding: ".4rem .6rem",
+                                          "border-radius": "6px",
+                                          border: "none",
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Show context message
+                                      </button>
+                                    }
+                                    onOpen={() => setTimeout(() => highlightAll(), 0)}
+                                  >
+                                    {/* eslint-disable-next-line solid/no-innerhtml */}
+                                    <article innerHTML={renderMarkdown(msg.content)} />
+                                  </Dialog>
+                                ) : (
+                                  // eslint-disable-next-line solid/no-innerhtml
+                                  <article innerHTML={renderMarkdown(msg.content)} />
+                                )}
+
+                                {/* Display SPARQL query results if present */}
+                                <Show when={msg.query_results}>
+                                  {qr => (
+                                    <div
                                       style={{
-                                        padding: ".4rem .6rem",
-                                        "border-radius": "6px",
-                                        border: "none",
-                                        cursor: "pointer",
+                                        "margin-top": ".5rem",
+                                        "font-size": "0.9rem",
+                                        display: "flex",
+                                        "align-items": "center",
+                                        gap: ".5rem",
                                       }}
                                     >
-                                      Show context message
-                                    </button>
-                                  }
-                                  onOpen={() => setTimeout(() => highlightAll(), 0)}
-                                >
-                                  {/* eslint-disable-next-line solid/no-innerhtml */}
-                                  <article innerHTML={renderMarkdown(msg.content)} />
-                                </Dialog>
-                              ) : (
-                                // eslint-disable-next-line solid/no-innerhtml
-                                <article innerHTML={renderMarkdown(msg.content)} />
-                              )}
+                                      {(qr().results?.length || 0) > 0 ? (
+                                        <>
+                                          <div
+                                            class="query-card"
+                                            style={{
+                                              "background-color": "#e6ffed",
+                                              color: "#027a3a",
+                                              padding: ".5rem",
+                                              "border-radius": "6px",
+                                            }}
+                                          >
+                                            Query results: {qr().results?.length || 0}
+                                          </div>
 
-                              {/* Display SPARQL query results if present */}
-                              <Show when={msg.query_results}>
-                                {qr => (
-                                  <div style={{"margin-top": ".5rem", "font-size": "0.9rem", display: "flex", "align-items": "center", gap: ".5rem"}}>
-                                    {(qr().results?.length || 0) > 0 ? (
-                                      <>
+                                          <div style={{display: "flex", gap: ".4rem", "align-items": "center"}}>
+                                            {(qr().results?.length || 0) > 0 && (
+                                              <Dialog
+                                                trigger={
+                                                  <button
+                                                    title="See results"
+                                                    style={{
+                                                      padding: ".4rem .5rem",
+                                                      "border-radius": "6px",
+                                                      border: "none",
+                                                      cursor: "pointer",
+                                                      "background-color": "#ffffff",
+                                                    }}
+                                                  >
+                                                    📊
+                                                  </button>
+                                                }
+                                                onOpen={() => setTimeout(() => highlightAll(), 0)}
+                                              >
+                                                <p>{qr().question}</p>
+                                                <p>{qr().sparql_endpoint}</p>
+                                                <pre>
+                                                  <code class="language-sparql">{qr().sparql_query}</code>
+                                                </pre>
+                                                <pre>
+                                                  <code class="language-json">
+                                                    {JSON.stringify(qr().results ?? [], null, 2)}
+                                                  </code>
+                                                </pre>
+                                              </Dialog>
+                                            )}
+                                          </div>
+                                        </>
+                                      ) : (
                                         <div
                                           class="query-card"
                                           style={{
-                                            "background-color": "#e6ffed",
-                                            color: "#027a3a",
+                                            "background-color": "#ffe6e6",
+                                            color: "#990000",
                                             padding: ".5rem",
                                             "border-radius": "6px",
                                           }}
                                         >
-                                          Query results: {qr().results?.length || 0}
+                                          {qr().error ? `Error: ${qr().error}` : "Query results: 0"}
                                         </div>
-
-                                        <div style={{display: "flex", gap: ".4rem", "align-items": "center"}}>
-                                          {(qr().results?.length || 0) > 0 && (
-                                            <Dialog
-                                              trigger={
-                                                <button
-                                                  title="See results"
-                                                  style={{
-                                                    padding: ".4rem .5rem",
-                                                    "border-radius": "6px",
-                                                    border: "none",
-                                                    cursor: "pointer",
-                                                    "background-color": "#ffffff",
-                                                  }}
-                                                >
-                                                  📊
-                                                </button>
-                                              }
-                                              onOpen={() => setTimeout(() => highlightAll(), 0)}
-                                            >
-                                              <p>{qr().question}</p>
-                                              <p>{qr().sparql_endpoint}</p>
-                                              <pre>
-                                                <code class="language-sparql">{qr().sparql_query}</code>
-                                              </pre>
-                                              <pre>
-                                                <code class="language-json">{JSON.stringify(qr().results ?? [], null, 2)}</code>
-                                              </pre>
-                                            </Dialog>
-                                          )}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <div
-                                        class="query-card"
-                                        style={{
-                                          "background-color": "#ffe6e6",
-                                          color: "#990000",
-                                          padding: ".5rem",
-                                          "border-radius": "6px",
-                                        }}
+                                      )}
+                                      {/* External SPARQL editor link */}
+                                      <a
+                                        href={`https://sib-swiss.github.io/sparql-editor/?query=${encodeURIComponent(qr().sparql_query || "")}&endpoint=${encodeURIComponent(qr().sparql_endpoint || "")}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open in SPARQL editor"
                                       >
-                                        {qr().error ? `Error: ${qr().error}` : "Query results: 0"}
-                                      </div>
-                                    )}
-                                    {/* External SPARQL editor link */}
-                                    <a
-                                      href={`https://sib-swiss.github.io/sparql-editor/?query=${encodeURIComponent(qr().sparql_query || "")}&endpoint=${encodeURIComponent(qr().sparql_endpoint || "")}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="Open in SPARQL editor"
-                                    >
-                                      <button
-                                        style={{
-                                          padding: ".25rem .4rem",
-                                          "border-radius": "6px",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          "background-color": "#f3f3f3",
-                                        }}
-                                      >
-                                        🔍
-                                      </button>
-                                    </a>
-                                  </div>
-                                )}
-                              </Show>
+                                        <button
+                                          style={{
+                                            padding: ".25rem .4rem",
+                                            "border-radius": "6px",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            "background-color": "#f3f3f3",
+                                          }}
+                                        >
+                                          🔍
+                                        </button>
+                                      </a>
+                                    </div>
+                                  )}
+                                </Show>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </For>
+                          )}
+                        </For>
 
-                      {/* Display steps details and token usage */}
-                      <Show when={convo.steps.length > 0 || convo.totalCost}>
-                        <div class="steps-box">
-                          {convo.totalCost && (
-                            <button
-                              style={{"background-color": "#f3f3f3", border: "none", cursor: "help"}}
-                              title={`Total cost: ${convo.totalCost * 100}¢
+                        {/* Display steps details and token usage */}
+                        <Show when={convo.steps.length > 0 || convo.totalCost}>
+                          <div class="steps-box">
+                            {convo.totalCost && (
+                              <button
+                                style={{"background-color": "#f3f3f3", border: "none", cursor: "help"}}
+                                title={`Total cost: ${convo.totalCost * 100}¢
 
 Tokens usage:
 📝 prompt: ${convo.promptTokens}
 🤖 completion: ${convo.completionTokens}
 📊 total: ${convo.totalTokens}`}
-                            >
-                              💶
-                            </button>
-                          )}
-                          <For each={convo.steps}>
-                            {step =>
-                              step.substeps && step.substeps.length > 0 ? (
-                                <Dialog
-                                  trigger={
-                                    <button class="btn-step" title="Click to see the details of the step">
-                                      {step.label}
-                                    </button>
-                                  }
-                                  onOpen={() => {
-                                    setSelectedDocsTab(step.substeps?.[0]?.label || "");
-                                    setTimeout(() => highlightAll(), 0);
-                                  }}
-                                >
-                                  <div>
-                                    <div style={{display: "flex", gap: ".5em", "margin-bottom": "1rem", "flex-wrap": "wrap", "align-items": "stretch"}}>
-                                      <For each={step.substeps!.map(substep => substep.label)}>
-                                        {label => (
-                                          <button
-                                            style={{
-                                              filter: selectedDocsTab() === label ? "brightness(60%)" : "none",
-                                            }}
-                                            onClick={() => {
-                                              setSelectedDocsTab(label);
-                                              setTimeout(() => highlightAll(), 0);
-                                            }}
-                                            title={`Show ${label}`}
-                                          >
-                                            {label}
-                                          </button>
+                              >
+                                💶
+                              </button>
+                            )}
+                            <For each={convo.steps}>
+                              {step =>
+                                step.substeps && step.substeps.length > 0 ? (
+                                  <Dialog
+                                    trigger={
+                                      <button class="btn-step" title="Click to see the details of the step">
+                                        {step.label}
+                                      </button>
+                                    }
+                                    onOpen={() => {
+                                      setSelectedDocsTab(step.substeps?.[0]?.label || "");
+                                      setTimeout(() => highlightAll(), 0);
+                                    }}
+                                  >
+                                    <div>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          gap: ".5em",
+                                          "margin-bottom": "1rem",
+                                          "flex-wrap": "wrap",
+                                          "align-items": "stretch",
+                                        }}
+                                      >
+                                        <For each={step.substeps!.map(substep => substep.label)}>
+                                          {label => (
+                                            <button
+                                              style={{
+                                                filter: selectedDocsTab() === label ? "brightness(60%)" : "none",
+                                              }}
+                                              onClick={() => {
+                                                setSelectedDocsTab(label);
+                                                setTimeout(() => highlightAll(), 0);
+                                              }}
+                                              title={`Show ${label}`}
+                                            >
+                                              {label}
+                                            </button>
+                                          )}
+                                        </For>
+                                      </div>
+                                      <For each={step.substeps!.filter(substep => substep.label === selectedDocsTab())}>
+                                        {substep => (
+                                          <article
+                                            // eslint-disable-next-line solid/no-innerhtml
+                                            innerHTML={renderMarkdown(substep.details)}
+                                          />
                                         )}
                                       </For>
                                     </div>
-                                    <For each={step.substeps!.filter(substep => substep.label === selectedDocsTab())}>
-                                      {substep => (
-                                        <article
-                                          // eslint-disable-next-line solid/no-innerhtml
-                                          innerHTML={renderMarkdown(substep.details)}
-                                        />
-                                      )}
-                                    </For>
-                                  </div>
-                                </Dialog>
-                              ) : step.details ? (
-                                <Dialog
-                                  trigger={
-                                    <button class="btn-step" title="Click to see the details of the step">
-                                      {step.label}
-                                    </button>
-                                  }
-                                  onOpen={() => {
-                                    setTimeout(() => highlightAll(), 0);
-                                  }}
-                                >
-                                  <article
-                                    // eslint-disable-next-line solid/no-innerhtml
-                                    innerHTML={renderMarkdown(step.details)}
-                                  />
-                                </Dialog>
-                              ) : (
-                                <p title={`Node: ${step.node_id}`}>{step.label}</p>
-                              )
-                            }
-                          </For>
-                        </div>
-                      </Show>
+                                  </Dialog>
+                                ) : step.details ? (
+                                  <Dialog
+                                    trigger={
+                                      <button class="btn-step" title="Click to see the details of the step">
+                                        {step.label}
+                                      </button>
+                                    }
+                                    onOpen={() => {
+                                      setTimeout(() => highlightAll(), 0);
+                                    }}
+                                  >
+                                    <article
+                                      // eslint-disable-next-line solid/no-innerhtml
+                                      innerHTML={renderMarkdown(step.details)}
+                                    />
+                                  </Dialog>
+                                ) : (
+                                  <p title={`Node: ${step.node_id}`}>{step.label}</p>
+                                )
+                              }
+                            </For>
+                          </div>
+                        </Show>
                       </Show>
                     </div>
                   )}
@@ -878,15 +949,18 @@ Tokens usage:
 
                 {/* Bottom pagination for convenience */}
                 <Show when={paginatedResult().totalPages > 1}>
-                  <div class="pagination-controls" style={{
-                    display: "flex",
-                    "justify-content": "center",
-                    gap: "0.5rem",
-                    "align-items": "center",
-                    padding: "1rem 0",
-                    "margin-top": "1rem",
-                    "border-top": "1px solid #eee",
-                  }}>
+                  <div
+                    class="pagination-controls"
+                    style={{
+                      display: "flex",
+                      "justify-content": "center",
+                      gap: "0.5rem",
+                      "align-items": "center",
+                      padding: "1rem 0",
+                      "margin-top": "1rem",
+                      "border-top": "1px solid #eee",
+                    }}
+                  >
                     <button
                       onClick={() => goToPage(1)}
                       disabled={currentPage() === 1}
@@ -907,14 +981,20 @@ Tokens usage:
                     <button
                       onClick={() => goToPage(currentPage() + 1)}
                       disabled={currentPage() === paginatedResult().totalPages}
-                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer"}}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                      }}
                     >
                       Next ▶️
                     </button>
                     <button
                       onClick={() => goToPage(paginatedResult().totalPages)}
                       disabled={currentPage() === paginatedResult().totalPages}
-                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer"}}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                      }}
                     >
                       Last ⏭️
                     </button>

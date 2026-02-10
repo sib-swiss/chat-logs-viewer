@@ -84,7 +84,7 @@ export const countBGPs = (sparqlQuery: string): number => {
     }
     return count;
   } catch (error) {
-    console.warn('Failed to parse SPARQL query for BGP counting:', error);
+    console.warn("Failed to parse SPARQL query for BGP counting:", error);
     return 0;
   }
 };

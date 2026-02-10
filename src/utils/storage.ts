@@ -156,7 +156,20 @@ const initDB = (): Promise<IDBDatabase> => {
 /**
  * Build searchable text from conversation for full-text search
  */
-const buildSearchText = (conversation: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">): string => {
+const buildSearchText = (
+  conversation: Omit<
+    Conversation,
+    | "id"
+    | "hasSparql"
+    | "hasInvalidQuery"
+    | "messageCount"
+    | "bgpCount"
+    | "searchText"
+    | "hasMultipleResults"
+    | "hasZeroResults"
+    | "hasErrors"
+  >,
+): string => {
   const parts: string[] = [];
   for (const msg of conversation.messages) {
     parts.push(msg.content.toLowerCase());
@@ -185,7 +198,9 @@ const hasMultipleResults = (messages: Message[]): boolean => {
  * Check if conversation has queries with zero results
  */
 const hasZeroResults = (messages: Message[]): boolean => {
-  return messages.some(msg => msg.query_results && !msg.query_results.error && (msg.query_results.results?.length || 0) === 0);
+  return messages.some(
+    msg => msg.query_results && !msg.query_results.error && (msg.query_results.results?.length || 0) === 0,
+  );
 };
 
 /**
@@ -201,7 +216,18 @@ const hasErrors = (messages: Message[]): boolean => {
 export const storeConversations = async (
   fileType: "likes" | "dislikes" | "langfuse",
   file: File,
-  conversations: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">[]
+  conversations: Omit<
+    Conversation,
+    | "id"
+    | "hasSparql"
+    | "hasInvalidQuery"
+    | "messageCount"
+    | "bgpCount"
+    | "searchText"
+    | "hasMultipleResults"
+    | "hasZeroResults"
+    | "hasErrors"
+  >[],
 ): Promise<void> => {
   const db = await initDB();
   // First, delete all existing conversations for this file type
@@ -282,7 +308,7 @@ const deleteConversationsByLabel = async (label: string): Promise<void> => {
 export const getFilteredConversations = async (
   filters: ConversationFilters,
   page: number = 1,
-  pageSize: number = 50
+  pageSize: number = 50,
 ): Promise<PaginatedResult> => {
   const db = await initDB();
   const search = filters.searchQuery.toLowerCase().trim();

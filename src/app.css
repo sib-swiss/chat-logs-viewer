@@ -252,7 +252,7 @@ dialog {
   margin-top: 0.5em;
   border-radius: 6px;
   flex-wrap: wrap;
-  align-items: stretch
+  align-items: stretch;
 }
 
 .btn-step {
