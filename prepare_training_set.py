@@ -1,6 +1,6 @@
+import argparse
 import json
 from pathlib import Path
-import time
 
 from pydantic import BaseModel
 
@@ -20,17 +20,13 @@ class QueryResults(BaseModel):
     error: str | None = None
 
 
-def build_training_dataset(
-    in_file="data/langfuse.jsonl", out_file="data/train_sparql.jsonl"
-) -> None:
+def build_training_dataset(in_file: Path, out_file: Path) -> None:
     """Build training dataset from merged log file, extract SPARQL queries with successful results."""
-    out_file = Path(out_file)
-    in_file = Path(in_file)
-
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with out_file.open("w", encoding="utf-8") as out:
-        print(f"📂 Processing file: {in_file}")
+        print(f"📂 Processing {in_file}")
+        seen: set[tuple[str, str]] = set()
         with in_file.open("r", encoding="utf-8") as fh:
             # Read all lines and reverse them to process newest entries first
             lines = fh.readlines()
@@ -42,6 +38,10 @@ def build_training_dataset(
                     if msg.get("query_results"):
                         qres = QueryResults.model_validate(msg["query_results"])
                         if len(qres.results) > 0:
+                            key = (qres.question.strip(), qres.sparql_query.strip())
+                            if key in seen:
+                                continue
+                            seen.add(key)
                             out.write(
                                 json.dumps(
                                     {
@@ -54,16 +54,26 @@ def build_training_dataset(
                                 )
                                 + "\n"
                             )
+    print(f"✅ Training dataset saved to {out_file}")
 
 
 if __name__ == "__main__":
-    start_time = time.time()
+    parser = argparse.ArgumentParser(
+        description="Build training dataset from merged log file, extract SPARQL queries with successful results."
+    )
+    parser.add_argument(
+        "input",
+        nargs="?",
+        default="data/langfuse.jsonl",
+        help="Path to the input merged log file (default: data/langfuse.jsonl)",
+    )
+    parser.add_argument(
+        "-o",
+        "--out",
+        dest="output",
+        default="data/train_sparql.jsonl",
+        help="Path to the output jsonl file (default: data/train_sparql.jsonl)",
+    )
+    args = parser.parse_args()
 
-    build_training_dataset()
-
-    # Compute and print elapsed runtime in hours/min
-    elapsed = time.time() - start_time
-    hours = int(elapsed // 3600)
-    minutes = int((elapsed % 3600) // 60)
-    seconds = int(elapsed % 60)
-    print(f"Runtime: {hours}h {minutes}m ({seconds}s) — {elapsed / 60:.2f} minutes")
+    build_training_dataset(in_file=Path(args.input), out_file=Path(args.output))
