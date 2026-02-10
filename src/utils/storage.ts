@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = "ChatLogsViewerDB";
-const DB_VERSION = 4; // Increment version for new individual conversations structure
+const DB_VERSION = 5; // Added query result filters
 const CONVERSATIONS_STORE = "conversations";
 const FILE_META_STORE = "fileMeta";
 
@@ -52,6 +52,10 @@ export interface Conversation {
   bgpCount: number;
   // Searchable text (lowercase concatenation of messages and sparql for search)
   searchText: string;
+  // Query result filters
+  hasMultipleResults: boolean;
+  hasZeroResults: boolean;
+  hasErrors: boolean;
 }
 
 export interface FileMeta {
@@ -70,6 +74,9 @@ export interface ConversationFilters {
   minMessages: number;
   minBgps: number;
   searchQuery: string;
+  withMultipleResults: boolean;
+  withZeroResults: boolean;
+  withErrors: boolean;
 }
 
 export interface PaginatedResult {
@@ -149,7 +156,7 @@ const initDB = (): Promise<IDBDatabase> => {
 /**
  * Build searchable text from conversation for full-text search
  */
-const buildSearchText = (conversation: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText">): string => {
+const buildSearchText = (conversation: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">): string => {
   const parts: string[] = [];
   for (const msg of conversation.messages) {
     parts.push(msg.content.toLowerCase());
@@ -168,12 +175,33 @@ const hasInvalidQueryStep = (steps: Step[]): boolean => {
 };
 
 /**
+ * Check if conversation has queries with multiple results
+ */
+const hasMultipleResults = (messages: Message[]): boolean => {
+  return messages.some(msg => msg.query_results && (msg.query_results.results?.length || 0) > 1);
+};
+
+/**
+ * Check if conversation has queries with zero results
+ */
+const hasZeroResults = (messages: Message[]): boolean => {
+  return messages.some(msg => msg.query_results && !msg.query_results.error && (msg.query_results.results?.length || 0) === 0);
+};
+
+/**
+ * Check if conversation has queries with errors
+ */
+const hasErrors = (messages: Message[]): boolean => {
+  return messages.some(msg => msg.query_results && msg.query_results.error);
+};
+
+/**
  * Store conversations from a file (replaces all conversations for that label)
  */
 export const storeConversations = async (
   fileType: "likes" | "dislikes" | "langfuse",
   file: File,
-  conversations: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText">[]
+  conversations: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">[]
 ): Promise<void> => {
   const db = await initDB();
   // First, delete all existing conversations for this file type
@@ -211,6 +239,9 @@ export const storeConversations = async (
           messageCount: conv.messages.length,
           bgpCount: conv.sparql_block?.bgp_count ?? 0,
           searchText: buildSearchText(conv),
+          hasMultipleResults: hasMultipleResults(conv.messages),
+          hasZeroResults: hasZeroResults(conv.messages),
+          hasErrors: hasErrors(conv.messages),
         };
         store.add(enrichedConv);
       }
@@ -279,6 +310,11 @@ export const getFilteredConversations = async (
 
         // Invalid query filter
         if (!conv.hasInvalidQuery && filters.withInvalidQuery) matches = false;
+
+        // Query result filters
+        if (!conv.hasMultipleResults && filters.withMultipleResults) matches = false;
+        if (!conv.hasZeroResults && filters.withZeroResults) matches = false;
+        if (!conv.hasErrors && filters.withErrors) matches = false;
 
         // Min messages filter
         if (conv.messageCount < filters.minMessages) matches = false;

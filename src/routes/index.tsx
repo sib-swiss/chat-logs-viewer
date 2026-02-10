@@ -34,7 +34,7 @@ hljs.registerLanguage("sparql", hljsDefineSparql);
 // hljs.registerLanguage("python", python);
 // hljs.registerLanguage("r", r);
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export default function Index() {
   // Signals
@@ -74,12 +74,15 @@ export default function Index() {
         withInvalidQuery: boolean;
         minMessages: number;
         minBgps: number;
+        withMultipleResults: boolean;
+        withZeroResults: boolean;
+        withErrors: boolean;
       }
     >
   >({
-    likes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
-    dislikes: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
-    langfuse: {withSparql: true, withoutSparql: true, withInvalidQuery: false, minMessages: 1, minBgps: 0},
+    likes: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
+    dislikes: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
+    langfuse: {withSparql: true, withoutSparql: false, withInvalidQuery: false, minMessages: 1, minBgps: 0, withMultipleResults: false, withZeroResults: false, withErrors: false},
   });
 
   // Track uploaded files for display (mock File objects)
@@ -92,6 +95,9 @@ export default function Index() {
     dislikes: null,
     langfuse: null,
   });
+
+  // Track expanded/collapsed state of conversations
+  const [expandedConversations, setExpandedConversations] = createStore<Record<number, boolean>>({});
 
   // Debounce timer for search
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -111,6 +117,9 @@ export default function Index() {
           minMessages: filters.minMessages,
           minBgps: filters.minBgps,
           searchQuery: searchQuery(),
+          withMultipleResults: filters.withMultipleResults,
+          withZeroResults: filters.withZeroResults,
+          withErrors: filters.withErrors,
         },
         currentPage(),
         PAGE_SIZE
@@ -223,7 +232,7 @@ export default function Index() {
   const parseJsonlFile = async (
     file: File,
     fileType: "likes" | "dislikes" | "langfuse"
-  ): Promise<Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText">[]> => {
+  ): Promise<Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText" | "hasMultipleResults" | "hasZeroResults" | "hasErrors">[]> => {
     const text = await file.text();
     const lines = text.trim().split("\n");
     const conversations: Omit<Conversation, "id" | "hasSparql" | "hasInvalidQuery" | "messageCount" | "bgpCount" | "searchText">[] = [];
@@ -254,13 +263,16 @@ export default function Index() {
               totalTokens: data.usage?.totalTokens || 0,
               sparql_block: data.output.structured_output
                 ? {
-                    endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
-                    query: data.output.structured_output["sparql_query"] || "",
-                    bgp_count: data.output.structured_output["sparql_query"]
-                      ? countBGPs(data.output.structured_output["sparql_query"])
-                      : 0,
-                  }
+                  endpoint: data.output.structured_output["sparql_endpoint_url"] || "",
+                  query: data.output.structured_output["sparql_query"] || "",
+                  bgp_count: data.output.structured_output["sparql_query"]
+                    ? countBGPs(data.output.structured_output["sparql_query"])
+                    : 0,
+                }
                 : undefined,
+              hasMultipleResults: false,
+              hasZeroResults: false,
+              hasErrors: false
             });
           }
         } else {
@@ -283,11 +295,14 @@ export default function Index() {
             totalCost: data.totalCost || 0,
             sparql_block: data.sparql_block
               ? {
-                  endpoint: data.sparql_block.endpoint || "",
-                  query: data.sparql_block.query || "",
-                  bgp_count: data.sparql_block.query ? countBGPs(data.sparql_block.query) : 0,
-                }
+                endpoint: data.sparql_block.endpoint || "",
+                query: data.sparql_block.query || "",
+                bgp_count: data.sparql_block.query ? countBGPs(data.sparql_block.query) : 0,
+              }
               : undefined,
+            hasMultipleResults: false,
+            hasZeroResults: false,
+            hasErrors: false
           });
         }
       } catch (e) {
@@ -502,6 +517,36 @@ export default function Index() {
                     With SPARQL
                   </label>
                 </div>
+                <div class="filter" title="Show only conversations with queries that returned more than 1 result">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={conversationFilters[tab.key].withMultipleResults}
+                      onChange={e => handleFilterChange(tab.key, "withMultipleResults", e.target.checked)}
+                    />
+                    &gt;1 results
+                  </label>
+                </div>
+                <div class="filter" title="Show only conversations with queries that returned 0 results">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={conversationFilters[tab.key].withZeroResults}
+                      onChange={e => handleFilterChange(tab.key, "withZeroResults", e.target.checked)}
+                    />
+                    0 results
+                  </label>
+                </div>
+                <div class="filter" title="Show only conversations with queries that have errors">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={conversationFilters[tab.key].withErrors}
+                      onChange={e => handleFilterChange(tab.key, "withErrors", e.target.checked)}
+                    />
+                    With errors
+                  </label>
+                </div>
                 <div class="filter" title="Show conversations without extracted SPARQL query">
                   <label>
                     <input
@@ -617,15 +662,43 @@ export default function Index() {
                 <For each={paginatedResult().conversations}>
                   {convo => (
                     <div class="box">
-                      <h4>🗓️ Conversation {convo.timestamp}</h4>
+                      <h4 
+                        onClick={() => setExpandedConversations(convo.id!, prev => !(prev ?? true))} 
+                        style={{cursor: "pointer", "user-select": "none"}}
+                      >
+                        {(expandedConversations[convo.id!] ?? true) ? "🔽" : "▶️"} Conversation {convo.timestamp}
+                      </h4>
 
-                      {/* Display messages */}
+                      <Show when={expandedConversations[convo.id!] ?? true}>
+                        {/* Display messages */}
                       <For each={convo.messages} fallback={<div>No messages found</div>}>
                         {msg => (
                           <div class={["user", "human"].includes(msg.role) ? "user-round" : ""}>
                             <div class="message">
-                              {/* eslint-disable-next-line solid/no-innerhtml */}
-                              <article innerHTML={renderMarkdown(msg.content)} />
+                              {((msg.content || "").length || 0) > 7000 ? (
+                                <Dialog
+                                  trigger={
+                                    <button
+                                      title="Show full message"
+                                      style={{
+                                        padding: ".4rem .6rem",
+                                        "border-radius": "6px",
+                                        border: "none",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      Show context message
+                                    </button>
+                                  }
+                                  onOpen={() => setTimeout(() => highlightAll(), 0)}
+                                >
+                                  {/* eslint-disable-next-line solid/no-innerhtml */}
+                                  <article innerHTML={renderMarkdown(msg.content)} />
+                                </Dialog>
+                              ) : (
+                                // eslint-disable-next-line solid/no-innerhtml
+                                <article innerHTML={renderMarkdown(msg.content)} />
+                              )}
 
                               {/* Display SPARQL query results if present */}
                               <Show when={msg.query_results}>
@@ -664,6 +737,11 @@ export default function Index() {
                                               }
                                               onOpen={() => setTimeout(() => highlightAll(), 0)}
                                             >
+                                              <p>{qr().question}</p>
+                                              <p>{qr().sparql_endpoint}</p>
+                                              <pre>
+                                                <code class="language-sparql">{qr().sparql_query}</code>
+                                              </pre>
                                               <pre>
                                                 <code class="language-json">{JSON.stringify(qr().results ?? [], null, 2)}</code>
                                               </pre>
@@ -792,6 +870,7 @@ Tokens usage:
                             }
                           </For>
                         </div>
+                      </Show>
                       </Show>
                     </div>
                   )}
