@@ -660,14 +660,14 @@ export default function Index() {
                       <button
                         onClick={() => goToPage(1)}
                         disabled={currentPage() === 1}
-                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer"}}
+                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer", "background-color": "white", opacity: currentPage() === 1 ? 0.5 : 1, color: "black"}}
                       >
                         ⏮️
                       </button>
                       <button
                         onClick={() => goToPage(currentPage() - 1)}
                         disabled={currentPage() === 1}
-                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer"}}
+                        style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer", "background-color": "white", opacity: currentPage() === 1 ? 0.5 : 1, color: "black"}}
                       >
                         ◀️
                       </button>
@@ -694,6 +694,9 @@ export default function Index() {
                         style={{
                           padding: "0.25rem 0.5rem",
                           cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                          "background-color": "white",
+                          opacity: currentPage() === paginatedResult().totalPages ? 0.5 : 1,
+                          color: "black",
                         }}
                       >
                         ▶️
@@ -704,6 +707,9 @@ export default function Index() {
                         style={{
                           padding: "0.25rem 0.5rem",
                           cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                          "background-color": "white",
+                          opacity: currentPage() === paginatedResult().totalPages ? 0.5 : 1,
+                          color: "black",
                         }}
                       >
                         ⏭️
@@ -964,14 +970,14 @@ Tokens usage:
                     <button
                       onClick={() => goToPage(1)}
                       disabled={currentPage() === 1}
-                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer"}}
+                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer", "background-color": "white", opacity: currentPage() === 1 ? 0.5 : 1, color: "black"}}
                     >
                       ⏮️ First
                     </button>
                     <button
                       onClick={() => goToPage(currentPage() - 1)}
                       disabled={currentPage() === 1}
-                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer"}}
+                      style={{padding: "0.25rem 0.5rem", cursor: currentPage() === 1 ? "not-allowed" : "pointer", "background-color": "white", opacity: currentPage() === 1 ? 0.5 : 1, color: "black"}}
                     >
                       ◀️ Previous
                     </button>
@@ -984,6 +990,9 @@ Tokens usage:
                       style={{
                         padding: "0.25rem 0.5rem",
                         cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                        "background-color": "white",
+                        opacity: currentPage() === paginatedResult().totalPages ? 0.5 : 1,
+                        color: "black",
                       }}
                     >
                       Next ▶️
@@ -994,6 +1003,9 @@ Tokens usage:
                       style={{
                         padding: "0.25rem 0.5rem",
                         cursor: currentPage() === paginatedResult().totalPages ? "not-allowed" : "pointer",
+                        "background-color": "white",
+                        opacity: currentPage() === paginatedResult().totalPages ? 0.5 : 1,
+                        color: "black",
                       }}
                     >
                       Last ⏭️
